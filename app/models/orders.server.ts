@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { NormalizedOrder } from "../domain/order-payload.server";
 import { fromMinorUnits } from "../domain/money";
 import prisma from "../db.server";
+import { normalizeShopDomain } from "./shops.server";
 
 export type IngestResult =
   | { status: "accepted" }
@@ -19,20 +20,22 @@ export async function ingestOrderCreate(input: {
   topic: string;
   order: NormalizedOrder;
 }): Promise<IngestResult> {
+  const shop = normalizeShopDomain(input.shop);
   try {
     return await prisma.$transaction(
       async (tx) => {
         const shopRow = await tx.shop.findUnique({
-          where: { domain: input.shop },
+          where: { domain: shop },
           select: { domain: true },
         });
 
         if (!shopRow) {
-          const offlineSession = await tx.session.findFirst({
-            where: { shop: input.shop, isOnline: false },
-            select: { id: true },
-          });
-          if (offlineSession) {
+          const sessions = await tx.$queryRaw<Array<{ id: string }>>`
+            SELECT "id" FROM "Session"
+            WHERE "isOnline" = 0 AND lower("shop") = ${shop}
+            LIMIT 1
+          `;
+          if (sessions.length > 0) {
             return { status: "setup_incomplete" } as const;
           }
           return { status: "unknown_shop" } as const;
@@ -40,7 +43,7 @@ export async function ingestOrderCreate(input: {
 
         await tx.webhookReceipt.create({
           data: {
-            shop: input.shop,
+            shop,
             webhookId: input.webhookId,
             topic: input.topic,
           },
@@ -49,12 +52,12 @@ export async function ingestOrderCreate(input: {
         await tx.order.upsert({
           where: {
             shop_orderId: {
-              shop: input.shop,
+              shop,
               orderId: input.order.orderId,
             },
           },
           create: {
-            shop: input.shop,
+            shop,
             orderId: input.order.orderId,
             name: input.order.name,
             totalMinor: input.order.totalMinor,
@@ -81,7 +84,7 @@ export async function ingestOrderCreate(input: {
       const existing = await prisma.webhookReceipt.findUnique({
         where: {
           shop_webhookId: {
-            shop: input.shop,
+            shop,
             webhookId: input.webhookId,
           },
         },
@@ -115,14 +118,15 @@ export type DashboardData = {
 export async function getDashboardForShop(
   shop: string,
 ): Promise<DashboardData> {
-  if (!shop) {
+  const domain = normalizeShopDomain(shop);
+  if (!domain) {
     throw new Error("shop is required");
   }
 
   return prisma.$transaction(async (tx) => {
     const groups = await tx.order.groupBy({
       by: ["currency", "isCod"],
-      where: { shop },
+      where: { shop: domain },
       _count: { _all: true },
       _sum: { totalMinor: true },
     });
@@ -142,7 +146,7 @@ export async function getDashboardForShop(
     }
 
     const latest = await tx.order.findMany({
-      where: { shop },
+      where: { shop: domain },
       orderBy: [{ createdAt: "desc" }, { orderId: "desc" }],
       take: 20,
     });
@@ -168,7 +172,11 @@ export async function getDashboardForShop(
         createdAt: row.createdAt.toISOString(),
         total: fromMinorUnits(row.totalMinor, row.currency),
         currency: row.currency,
-        gateways: Array.isArray(row.gateways) ? (row.gateways as string[]) : [],
+        gateways: Array.isArray(row.gateways)
+          ? row.gateways.filter(
+              (item): item is string => typeof item === "string",
+            )
+          : [],
         isCod: row.isCod,
       })),
       refreshedAt: new Date().toISOString(),

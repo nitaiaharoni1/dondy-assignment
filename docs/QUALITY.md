@@ -2,7 +2,7 @@
 
 ## What is and is not verified
 
-The application is implemented. `npm run test` has been run: 26 tests passed, including COD rules, fixed HMAC fixtures, rollback, shop isolation, and uninstall cleanup. Lint, typecheck, format check, and build have also been run. A local synthetic signed delivery was replayed twice against the app server (first 200 in 38ms, duplicate 200 in 4ms, one stored order). A real development-store order has not been observed. Do not put tests into an automatically executed build/check command.
+The application is implemented. `npm run test` has been run: 30 tests passed, including COD rules, fixed HMAC fixtures, rollback, shop isolation, and uninstall cleanup. Lint, typecheck, format check, and build have also been run. A local synthetic signed delivery was replayed twice against the app server (first 200 in 38ms, duplicate 200 in 4ms, one stored order). A real development-store order has not been observed. Do not put tests into an automatically executed build/check command.
 
 ## Compiler and lint policy
 
@@ -119,7 +119,7 @@ Targets are not results. Run measurements only after correctness is in place and
 
 - [x] Source and lockfile match the recorded verification commit after the latest push.
 - [x] Lint, typecheck, formatter, and build outcomes are recorded in the README time log.
-- [x] Test execution status is explicit: `npm run test`, 26 passed.
+- [x] Test execution status is explicit: `npm run test`, 30 passed.
 - [x] A real Shopify order was not observed. The gap is disclosed. A local synthetic signed delivery was observed instead.
 - [x] Exact replay has local server evidence. Shop isolation and uninstall have database test evidence, not a second live store.
 - [ ] README setup through `shopify app dev` and a development-store install was not run. The replay command was run against a local server.

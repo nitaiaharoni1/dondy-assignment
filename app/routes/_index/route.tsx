@@ -21,9 +21,10 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>COD Order Watch</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          See which new orders are cash on delivery, for the shop that installed
+          this app.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
@@ -39,16 +40,16 @@ export default function App() {
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Signed deliveries.</strong> An orders/create webhook is
+            checked before anything is stored.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>One count per order.</strong> Sending the same delivery
+            again does not increase the total.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>This shop only.</strong> The dashboard shows the signed-in
+            store.
           </li>
         </ul>
       </div>

@@ -7,12 +7,6 @@ const MAX_GATEWAYS = 32;
 const MAX_GATEWAY_LENGTH = 128;
 const MAX_NAME_LENGTH = 128;
 
-const gatewaySchema = z
-  .string()
-  .max(MAX_GATEWAY_LENGTH)
-  .transform((value) => value.trim())
-  .refine((value) => value.length > 0, "Gateway names must be non-empty");
-
 const orderPayloadSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
   admin_graphql_api_id: z.string().optional(),
@@ -96,6 +90,20 @@ function normalizeOrderId(
   return orderId;
 }
 
+function normalizeGateways(names: string[]): string[] {
+  const gateways: string[] = [];
+  for (const name of names) {
+    if (name.length > MAX_GATEWAY_LENGTH) {
+      throw new OrderPayloadError("Payment gateway name is too long");
+    }
+    const trimmed = name.trim();
+    if (trimmed.length > 0) {
+      gateways.push(trimmed);
+    }
+  }
+  return gateways;
+}
+
 export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   const parsed = orderPayloadSchema.safeParse(input);
   if (!parsed.success) {
@@ -105,11 +113,10 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   }
 
   const data = parsed.data;
-  const gatewaysParsed = z
-    .array(gatewaySchema)
-    .safeParse(data.payment_gateway_names);
-  if (!gatewaysParsed.success) {
-    throw new OrderPayloadError("Invalid payment_gateway_names");
+  const gateways = normalizeGateways(data.payment_gateway_names);
+  const name = data.name.trim();
+  if (name.length === 0) {
+    throw new OrderPayloadError("Order name is required");
   }
 
   const createdAt = new Date(data.created_at);
@@ -132,12 +139,11 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
       ? null
       : data.financial_status;
 
-  const gateways = gatewaysParsed.data;
   const orderId = normalizeOrderId(data.admin_graphql_api_id, data.id);
 
   return {
     orderId,
-    name: data.name.trim(),
+    name,
     totalMinor,
     currency: data.currency,
     gateways,

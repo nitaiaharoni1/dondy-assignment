@@ -313,6 +313,52 @@ describe("order ingest transactions", () => {
     expect(await prisma.shop.count({ where: { domain: shopA } })).toBe(0);
   });
 
+  it("stores a mixed-case shop once and keeps the install time", async () => {
+    const mixed = "Mixed-Shop.myshopify.com";
+    await prisma.session.create({
+      data: {
+        id: "offline_mixed",
+        shop: mixed,
+        state: "state",
+        isOnline: false,
+        accessToken: "token-mixed",
+      },
+    });
+    expect((await ensureShopRegistered(mixed)).ok).toBe(true);
+    await prisma.shop.update({
+      where: { domain: "mixed-shop.myshopify.com" },
+      data: { installedAt: new Date("2020-01-01T00:00:00.000Z") },
+    });
+    expect((await ensureShopRegistered("MIXED-SHOP.myshopify.com")).ok).toBe(
+      true,
+    );
+    const row = await prisma.shop.findUnique({
+      where: { domain: "mixed-shop.myshopify.com" },
+    });
+    expect(row?.installedAt.toISOString()).toBe("2020-01-01T00:00:00.000Z");
+
+    const saved = await ingestOrderCreate({
+      shop: "MIXED-SHOP.myshopify.com",
+      webhookId: "wh-mixed",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "mixed-1", name: "#M" }),
+    });
+    expect(saved.status).toBe("accepted");
+    const dash = await getDashboardForShop("mixed-shop.myshopify.com");
+    expect(dash.ordersReceived).toBe(1);
+    expect(dash.latestOrders[0]?.name).toBe("#M");
+
+    await purgeShopData("MIXED-SHOP.myshopify.com");
+    expect(await prisma.session.count({ where: { id: "offline_mixed" } })).toBe(
+      0,
+    );
+    expect(
+      await prisma.shop.count({
+        where: { domain: "mixed-shop.myshopify.com" },
+      }),
+    ).toBe(0);
+  });
+
   it("returns setup_incomplete when offline session exists without Shop", async () => {
     await prisma.shop.delete({ where: { domain: shopA } });
     const result = await ingestOrderCreate({

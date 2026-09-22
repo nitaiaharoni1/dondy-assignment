@@ -71,6 +71,49 @@ describe("normalizeOrderPayload", () => {
     ).toThrow(OrderPayloadError);
   });
 
+  it("drops blank gateway names and trims the order name", () => {
+    const normalized = normalizeOrderPayload({
+      id: "10",
+      name: "  #10  ",
+      total_price: "1.00",
+      currency: "USD",
+      payment_gateway_names: ["  ", " Cash on Delivery "],
+      financial_status: "paid",
+      created_at: "2026-09-22T10:00:00Z",
+    });
+    expect(normalized.name).toBe("#10");
+    expect(normalized.gateways).toEqual(["Cash on Delivery"]);
+    expect(normalized.isCod).toBe(true);
+  });
+
+  it("treats only blank gateways as an empty non-COD list", () => {
+    const normalized = normalizeOrderPayload({
+      id: "11",
+      name: "#11",
+      total_price: "1.00",
+      currency: "USD",
+      payment_gateway_names: ["   "],
+      financial_status: "pending",
+      created_at: "2026-09-22T10:00:00Z",
+    });
+    expect(normalized.gateways).toEqual([]);
+    expect(normalized.isCod).toBe(false);
+  });
+
+  it("rejects an order name that is only spaces", () => {
+    expect(() =>
+      normalizeOrderPayload({
+        id: "12",
+        name: "   ",
+        total_price: "1.00",
+        currency: "USD",
+        payment_gateway_names: [],
+        financial_status: "paid",
+        created_at: "2026-09-22T10:00:00Z",
+      }),
+    ).toThrow(OrderPayloadError);
+  });
+
   it("rejects disagreeing ids", () => {
     expect(() =>
       normalizeOrderPayload({

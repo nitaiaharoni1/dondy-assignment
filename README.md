@@ -94,7 +94,7 @@ Planning and setup count toward the assignment budget.
 | Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                                                                                            |
 | Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                                                                                           |
 | Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                                                                                           |
-| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run test` 26 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
+| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run test` 30 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
 
 ## Plan docs
 

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import "@shopify/shopify-api/adapters/web-api";
 import "@shopify/shopify-app-react-router/adapters/node";
 import { shopifyApi } from "@shopify/shopify-api";
@@ -167,10 +169,6 @@ export async function authenticateWebhookRequest(
 }
 
 export function shopLogToken(shop: string): string {
-  // Non-reversible short token for logs (not a secret hash of PII).
-  let hash = 0;
-  for (let i = 0; i < shop.length; i += 1) {
-    hash = (hash * 31 + shop.charCodeAt(i)) >>> 0;
-  }
-  return `shop_${hash.toString(16)}`;
+  const digest = createHash("sha256").update(shop).digest("hex").slice(0, 12);
+  return `shop_${digest}`;
 }
