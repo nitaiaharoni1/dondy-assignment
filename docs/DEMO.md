@@ -6,7 +6,7 @@ Use the installed development store and keep `shopify app dev` running with the 
 
 Prepare one real COD order path and one fabricated signed delivery fixture. Keep secrets and any real capture local. Know whether metrics already contain previous orders so the expected deltas are clear. Make the repository's actual time log and limitations easy to find.
 
-The live store steps below are not done. A local fallback was run: the same fabricated signed body was posted twice to a local server, both responses were 200, and one COD order remained. Say that clearly if the tunnel is down. It is not proof of an embedded Shopify install.
+Live store evidence from 22 Sep 2026 is in the README Demo: order #1011 on Quick Start, empty gateways, dashboard updated. The same-delivery clip posts one fabricated signed body twice. It is not a replay of Shopify's original #1011 bytes. If the tunnel is down, say so and use the local replay. Do not call the fabricated clip Shopify's original delivery.
 
 ## Fifteen-minute agenda
 

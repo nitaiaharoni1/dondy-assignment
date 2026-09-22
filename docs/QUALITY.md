@@ -119,10 +119,10 @@ Targets are not results. Run measurements only after correctness is in place and
 
 - [x] Source and lockfile match the recorded verification commit after the latest push.
 - [x] Lint, typecheck, formatter, and build outcomes are recorded in the README time log.
-- [x] Test execution status is explicit: `npm run test`, 30 passed.
+- [x] Test execution status is explicit: an earlier `npm run test` passed 30. After the edge-case commits, the six test files passed together (51).
 - [x] A real Shopify order was observed: #1011 on Quick Start. Recorded in docs/demo. Gateway list was empty, so the row is not COD.
 - [x] Exact replay has local server evidence. Shop isolation and uninstall have database test evidence, not a second live store.
-- [ ] README setup through `shopify app dev` and a development-store install was not run. The replay command was run against a local server.
+- [x] `shopify app dev` and the Quick Start install were run on 22 Sep 2026. Order #1011 was stored. The same-delivery clip is a fabricated signed body, not Shopify's original bytes for #1011.
 - [x] No environment files, SQLite session database, private capture, or source invitation is tracked.
 - [x] Public repository `nitaiaharoni1/dondy-assignment`, default branch `main`, visibility public.
 

@@ -101,7 +101,7 @@ Clips and stills are in [Demo](#demo) above. Extra detail from that session: the
 
 ## Key decisions
 
-- **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhooks.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
+- **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhook-signature.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
 - **Order and uninstall handlers do not call `authenticate.webhook()`.** That template helper can load and refresh an access token. These two routes check the raw body with `@shopify/shopify-api` `webhooks.validate`, then parse JSON. The generated `app/scopes_update` route still uses the template helper, because it updates the saved session scope.
 - **The signature check is the SDK's `safeCompare`.** Equal-length values are compared with XOR across every byte (`timingSafeEqual` in `@shopify/shopify-api`). Different lengths return false without walking the bytes. This app does not implement its own compare.
 - **Write, then answer.** The order and the delivery id commit in one database transaction. Success, a duplicate delivery, and an unknown shop return 200. A failed write returns 503 so Shopify retries. A bad signature returns 401. A bad payload returns 400.
@@ -119,7 +119,7 @@ Clips and stills are in [Demo](#demo) above. Extra detail from that session: the
 | Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this            |
 | 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                              |
 | Stored fields and COD flag                  | `prisma/schema.prisma`, `app/orders/cod.ts`  | Tested                                                                |
-| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Built. Not opened inside a store admin                                |
+| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Opened in the Quick Start admin. Order #1011 is on the dashboard. See Demo |
 | This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                                 |
 | `app/uninstalled` deletes that shop's data  | `app/orders/shops.server.ts`                 | Tested, including a second call                                       |
 | README                                      | This file                                    | How to run, rule, decisions, time, limits                             |
@@ -142,7 +142,7 @@ Planning and setup count toward the assignment budget.
 | Application, tests, and review                 | 42 minutes, 14:10 to 14:52 Asia/Jerusalem               | Commits `81537ba` through `3f48d63`                                                                                                            |
 | Requirements check against the original task   | After 14:52 Asia/Jerusalem, see this commit's timestamp | README sections Key decisions and Requirements                                                                                                 |
 | Store setup, installation, and live demo       | 22 Sep 2026, about 12:03 to 12:25 UTC                   | Installed on Quick Start. Order #1011 stored. See docs/demo                                                                                    |
-| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass   | `npm run test` 30 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
+| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass   | `npm run test` 30 passed in that pass. Later focused runs of the six test files passed (51). Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. The install is the row above |
 
 ## Plan docs
 
