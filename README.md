@@ -81,6 +81,16 @@ npx tsx scripts/replay-webhook.ts \
 
 Refresh the dashboard after webhooks; the open browser does not update by itself.
 
+## Live recording
+
+Recorded on 22 Sep 2026 inside the development store Quick Start (`quick-start-688d1411`). The dashboard opened in Shopify admin and started empty. Existing test orders from 2023 were not imported.
+
+Order **#1011** was then created in that store: one custom item, payment due later, no gateway name. Shopify delivered `orders/create` (accepted in 46 ms). The dashboard then showed 1 order received, 0 COD orders, 0.0% share, and ILS 29.25. The row is COD No, because the gateway list was empty. That matches the rule.
+
+![Live store test](docs/demo/live-store.gif)
+
+Stills: [empty dashboard](docs/demo/01-empty.png), [order #1011](docs/demo/02-order.png), [dashboard after the webhook](docs/demo/03-dashboard.png). [MP4](docs/demo/live-store.mp4).
+
 ## Key decisions
 
 - **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhooks.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
@@ -93,18 +103,18 @@ Refresh the dashboard after webhooks; the open browser does not update by itself
 
 ## Requirements
 
-| Task item                                   | Where                                        | Status                                                     |
-| ------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| Embedded app on a development store         | `npm run dev`                                | Not done. Needs your Partner login, then install           |
-| `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                   |
-| Raw-body HMAC                               | `app/webhooks/authenticate.server.ts`        | SDK validator. Fixed signature test passes                 |
-| Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this |
-| 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                   |
-| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/orders/cod.ts`  | Tested                                                     |
-| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Built. Not opened inside a store admin                     |
-| This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                      |
-| `app/uninstalled` deletes that shop's data  | `app/orders/shops.server.ts`                 | Tested, including a second call                            |
-| README                                      | This file                                    | How to run, rule, decisions, time, limits                  |
+| Task item                                   | Where                                        | Status                                                                |
+| ------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
+| Embedded app on a development store         | `npm run dev`                                | Installed on Quick Start (`quick-start-688d1411`). See Live recording |
+| `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                              |
+| Raw-body HMAC                               | `app/webhooks/authenticate.server.ts`        | SDK validator. Fixed signature test passes                            |
+| Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this            |
+| 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                              |
+| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/orders/cod.ts`  | Tested                                                                |
+| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Built. Not opened inside a store admin                                |
+| This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                                 |
+| `app/uninstalled` deletes that shop's data  | `app/orders/shops.server.ts`                 | Tested, including a second call                                       |
+| README                                      | This file                                    | How to run, rule, decisions, time, limits                             |
 
 ## Deliberate limits
 
@@ -123,7 +133,7 @@ Planning and setup count toward the assignment budget.
 | Follow-up planning audit and corrections       | 5 minutes 15 seconds                                    | 13:59:26 to 14:04:41 Asia/Jerusalem                                                                                                            |
 | Application, tests, and review                 | 42 minutes, 14:10 to 14:52 Asia/Jerusalem               | Commits `81537ba` through `3f48d63`                                                                                                            |
 | Requirements check against the original task   | After 14:52 Asia/Jerusalem, see this commit's timestamp | README sections Key decisions and Requirements                                                                                                 |
-| Store setup, installation, and live demo       | Not completed in-agent                                  | Needs Partner login / store install by the candidate                                                                                           |
+| Store setup, installation, and live demo       | 22 Sep 2026, about 12:03 to 12:25 UTC                   | Installed on Quick Start. Order #1011 stored. See docs/demo                                                                                    |
 | Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass   | `npm run test` 30 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
 
 ## Plan docs

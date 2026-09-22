@@ -1,0 +1,5 @@
+name = "react-router"
+roles = ["frontend", "backend"]
+
+[commands]
+dev = "npx react-router dev"
