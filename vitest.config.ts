@@ -5,5 +5,9 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     environment: "node",
     fileParallelism: false,
+    env: {
+      DATABASE_URL: "file:test.sqlite",
+    },
+    globalSetup: "./tests/global-setup.ts",
   },
 });

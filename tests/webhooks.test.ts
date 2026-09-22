@@ -1,5 +1,12 @@
-import { createHmac } from "node:crypto";
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { PrismaClient } from "@prisma/client";
 
 import { ingestOrderCreate } from "../app/models/orders.server";
@@ -8,20 +15,25 @@ import { purgeShopData } from "../app/models/shops.server";
 import { ensureShopRegistered } from "../app/models/shops.server";
 import { authenticateWebhookRequest } from "../app/webhooks.server";
 import type { NormalizedOrder } from "../app/domain/order-payload.server";
+import { action as ordersCreateAction } from "../app/routes/webhooks.orders.create";
+import { action as uninstallAction } from "../app/routes/webhooks.app.uninstalled";
 
 const TEST_SECRET = "cod-order-watch-test-secret-not-real";
 const TEST_API_KEY = "cod-order-watch-test-api-key";
 const TEST_APP_URL = "https://cod-order-watch.test";
 
 /**
- * Independently computed fixture (openssl / Node createHmac), not taken from
- * the validator under test at assertion time.
+ * Fixed fixtures. Signatures were computed once with Node crypto, outside the
+ * Shopify validator, and pasted here so this file does not sign the bytes it
+ * then asks the validator to accept.
  */
 const FIXED_BODY =
   '{"id":"1001","admin_graphql_api_id":"gid://shopify/Order/1001","name":"#1001","total_price":"12.34","currency":"USD","payment_gateway_names":["Cash on Delivery"],"financial_status":"pending","created_at":"2026-09-22T12:00:00Z"}';
-const FIXED_HMAC = createHmac("sha256", TEST_SECRET)
-  .update(FIXED_BODY, "utf8")
-  .digest("base64");
+const FIXED_HMAC = "qCes9mylIhtXkEwiXyvSPtD8Y8UGqVkyCRKOm8GWm2I=";
+const MALFORMED_JSON_BODY = "{";
+const MALFORMED_JSON_HMAC = "t1tE3NVjgIZCb+XuXOS6O0q8TkYTn6iB3kemkfkszJ4=";
+const UNINSTALL_BODY = '{"ok":true}';
+const UNINSTALL_HMAC = "UEM43rn6NrTn6x4B8qnhhxmpuBS4rcitUg21v3Sb4yM=";
 
 function orderFixture(
   overrides: Partial<NormalizedOrder> = {},
@@ -35,6 +47,16 @@ function orderFixture(
     createdAt: new Date("2026-09-22T12:00:00Z"),
     isCod: true,
     ...overrides,
+  };
+}
+
+function actionArgs(request: Request) {
+  return {
+    request,
+    url: new URL(request.url),
+    pattern: new URL(request.url).pathname,
+    params: {},
+    context: {},
   };
 }
 
@@ -102,6 +124,27 @@ describe("webhook HMAC validation", () => {
       "ORDERS_CREATE",
     );
     expect(missing.ok).toBe(false);
+
+    const whitespace = await authenticateWebhookRequest(
+      signedRequest(`${FIXED_BODY} `, FIXED_HMAC),
+      "ORDERS_CREATE",
+    );
+    expect(whitespace.ok).toBe(false);
+    if (!whitespace.ok) {
+      expect(whitespace.failure.status).toBe(401);
+    }
+  });
+
+  it("rejects correctly signed malformed JSON", async () => {
+    const result = await authenticateWebhookRequest(
+      signedRequest(MALFORMED_JSON_BODY, MALFORMED_JSON_HMAC),
+      "ORDERS_CREATE",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.status).toBe(400);
+      expect(result.failure.reason).toBe("malformed_json");
+    }
   });
 });
 
@@ -255,5 +298,178 @@ describe("order ingest transactions", () => {
     expect(
       await prisma.shop.count({ where: { domain: "ghost.myshopify.com" } }),
     ).toBe(0);
+  });
+
+  it("rolls back the receipt when the order write fails, then accepts a retry", async () => {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_order_insert`);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER fail_order_insert
+      BEFORE INSERT ON "Order"
+      BEGIN
+        SELECT RAISE(ABORT, 'forced order failure');
+      END;
+    `);
+
+    try {
+      await expect(
+        ingestOrderCreate({
+          shop: shopA,
+          webhookId: "wh-rollback",
+          topic: "ORDERS_CREATE",
+          order: orderFixture({ orderId: "rollback-1" }),
+        }),
+      ).rejects.toThrow();
+      expect(await prisma.order.count({ where: { shop: shopA } })).toBe(0);
+      expect(
+        await prisma.webhookReceipt.count({ where: { shop: shopA } }),
+      ).toBe(0);
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS fail_order_insert`,
+      );
+    }
+
+    const retry = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-rollback",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "rollback-1" }),
+    });
+    expect(retry.status).toBe("accepted");
+    expect(await prisma.order.count({ where: { shop: shopA } })).toBe(1);
+    expect(await prisma.webhookReceipt.count({ where: { shop: shopA } })).toBe(
+      1,
+    );
+  });
+
+  it("keeps one order when the same delivery arrives twice at once", async () => {
+    const input = {
+      shop: shopA,
+      webhookId: "wh-race",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "race-1" }),
+    };
+    const results = await Promise.allSettled([
+      ingestOrderCreate(input),
+      ingestOrderCreate(input),
+    ]);
+
+    const fulfilled = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value.status] : [],
+    );
+    expect(
+      fulfilled.filter((status) => status === "accepted").length,
+    ).toBeLessThanOrEqual(1);
+
+    if (results.some((result) => result.status === "rejected")) {
+      const retry = await ingestOrderCreate(input);
+      expect(retry.status === "accepted" || retry.status === "duplicate").toBe(
+        true,
+      );
+    }
+
+    expect(await prisma.order.count({ where: { shop: shopA } })).toBe(1);
+    expect(await prisma.webhookReceipt.count({ where: { shop: shopA } })).toBe(
+      1,
+    );
+  });
+
+  it("shows an empty dashboard without inventing a currency", async () => {
+    const dash = await getDashboardForShop(shopA);
+    expect(dash.ordersReceived).toBe(0);
+    expect(dash.codOrders).toBe(0);
+    expect(dash.codSharePercent).toBe(0);
+    expect(dash.totalsByCurrency).toEqual([]);
+    expect(dash.latestOrders).toEqual([]);
+  });
+
+  it("keeps metrics for every order and shows only the latest 20", async () => {
+    for (let i = 0; i < 25; i += 1) {
+      const even = i % 2 === 0;
+      const saved = await ingestOrderCreate({
+        shop: shopA,
+        webhookId: `wh-page-${i}`,
+        topic: "ORDERS_CREATE",
+        order: orderFixture({
+          orderId: String(1000 + i),
+          name: `#${1000 + i}`,
+          currency: even ? "USD" : "JPY",
+          totalMinor: even ? 100n : 50n,
+          createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)),
+          isCod: i % 3 === 0,
+        }),
+      });
+      expect(saved.status).toBe("accepted");
+    }
+
+    const dash = await getDashboardForShop(shopA);
+    expect(dash.ordersReceived).toBe(25);
+    expect(dash.codOrders).toBe(9);
+    expect(dash.codSharePercent).toBe(36);
+    expect(dash.latestOrders).toHaveLength(20);
+    expect(dash.latestOrders[0]?.id).toBe("1024");
+    expect(dash.latestOrders[19]?.id).toBe("1005");
+    expect(dash.totalsByCurrency).toEqual([
+      { currency: "JPY", amount: "600" },
+      { currency: "USD", amount: "13.00" },
+    ]);
+  });
+
+  it("does not write when the signature is forged", async () => {
+    const response = await ordersCreateAction(
+      actionArgs(signedRequest(FIXED_BODY, "not-a-real-signature")),
+    );
+    expect(response.status).toBe(401);
+    expect(await prisma.order.count()).toBe(0);
+    expect(await prisma.webhookReceipt.count()).toBe(0);
+  });
+
+  it("purges one shop on uninstall without a network call, then accepts a repeat", async () => {
+    await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-uninstall-a",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "uninstall-a" }),
+    });
+    await ingestOrderCreate({
+      shop: shopB,
+      webhookId: "wh-uninstall-b",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "uninstall-b", name: "#B" }),
+    });
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const first = await uninstallAction(
+      actionArgs(
+        signedRequest(UNINSTALL_BODY, UNINSTALL_HMAC, {
+          shop: shopA,
+          topic: "APP_UNINSTALLED",
+          webhookId: "uninstall-1",
+        }),
+      ),
+    );
+    expect(first.status).toBe(200);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+
+    expect(await prisma.order.count({ where: { shop: shopA } })).toBe(0);
+    expect(await prisma.webhookReceipt.count({ where: { shop: shopA } })).toBe(
+      0,
+    );
+    expect(await prisma.session.count({ where: { shop: shopA } })).toBe(0);
+    expect(await prisma.shop.count({ where: { domain: shopA } })).toBe(0);
+    expect(await prisma.order.count({ where: { shop: shopB } })).toBe(1);
+
+    const second = await uninstallAction(
+      actionArgs(
+        signedRequest(UNINSTALL_BODY, UNINSTALL_HMAC, {
+          shop: shopA,
+          topic: "APP_UNINSTALLED",
+          webhookId: "uninstall-2",
+        }),
+      ),
+    );
+    expect(second.status).toBe(200);
+    expect(await prisma.order.count({ where: { shop: shopB } })).toBe(1);
   });
 });

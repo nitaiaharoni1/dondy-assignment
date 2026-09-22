@@ -1,3 +1,4 @@
+import "@shopify/shopify-api/adapters/web-api";
 import "@shopify/shopify-app-react-router/adapters/node";
 import { shopifyApi } from "@shopify/shopify-api";
 import { ApiVersion } from "@shopify/shopify-api";

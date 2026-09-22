@@ -45,14 +45,15 @@ npm run dev
 
 Environment variables (set by Shopify CLI during `app dev`; never commit real values):
 
-| Name                 | Purpose                      |
-| -------------------- | ---------------------------- |
-| `SHOPIFY_API_KEY`    | Public app client id         |
-| `SHOPIFY_API_SECRET` | App secret for HMAC          |
-| `SHOPIFY_APP_URL`    | Current app / tunnel URL     |
-| `SCOPES`             | Should include `read_orders` |
+| Name                 | Purpose                                |
+| -------------------- | -------------------------------------- |
+| `SHOPIFY_API_KEY`    | Public app client id                   |
+| `SHOPIFY_API_SECRET` | App secret for HMAC                    |
+| `SHOPIFY_APP_URL`    | Current app / tunnel URL               |
+| `SCOPES`             | Should include `read_orders`           |
+| `DATABASE_URL`       | SQLite file, default `file:dev.sqlite` |
 
-Database: SQLite file `prisma/dev.sqlite` (gitignored). Schema and migrations live under `prisma/`.
+Database file is `prisma/dev.sqlite` (gitignored). Schema and migrations live under `prisma/`. Tests use a separate throwaway file, `prisma/test.sqlite`.
 
 ### Useful commands
 
@@ -62,7 +63,7 @@ npm run build          # production build
 npm run typecheck
 npm run lint
 npm run format:check
-npm run test           # only when you want the focused suite
+npm run test           # Vitest, throwaway prisma/test.sqlite
 ```
 
 Duplicate-delivery demo helper (fabricated payload, same webhook id twice):
@@ -85,14 +86,14 @@ With more time: PostgreSQL, durable intake queue, reconciliation, lifecycle gene
 
 Planning and setup count toward the assignment budget.
 
-| Activity                                       | Actual elapsed time                                                    | Evidence/status                                                              |
-| ---------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Initial reading and inspection before 13:45:12 | Unmeasured                                                             | Add if known                                                                 |
-| Instrumented planning and repository setup     | 11 minutes 38 seconds                                                  | 13:45:12 to 13:56:50 Asia/Jerusalem                                          |
-| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                          |
-| Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                         |
-| Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                         |
-| Builds and typecheck / lint                    | Run during implementation                                              | `npm run build`, `typecheck`, `lint` succeeded; full test suite not auto-run |
+| Activity                                       | Actual elapsed time                                                    | Evidence/status                                                          |
+| ---------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Initial reading and inspection before 13:45:12 | Unmeasured                                                             | Add if known                                                             |
+| Instrumented planning and repository setup     | 11 minutes 38 seconds                                                  | 13:45:12 to 13:56:50 Asia/Jerusalem                                      |
+| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                      |
+| Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                     |
+| Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                     |
+| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run build`, `typecheck`, `lint` succeeded; `npm run test` 21 passed |
 
 ## Plan docs
 
