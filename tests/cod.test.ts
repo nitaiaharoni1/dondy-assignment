@@ -44,7 +44,9 @@ describe("money", () => {
 
   it("rejects invalid financial data", () => {
     expect(() => toMinorUnits("abc", "USD")).toThrow(/Invalid decimal|Amount/);
-    expect(() => toMinorUnits("-1.00", "USD")).toThrow(/Invalid decimal|Negative/);
+    expect(() => toMinorUnits("-1.00", "USD")).toThrow(
+      /Invalid decimal|Negative/,
+    );
     expect(() => toMinorUnits("1.00", "ZZZ")).toThrow(/Unsupported currency/);
     expect(() => toMinorUnits("1.234", "USD")).toThrow(/fractional digits/);
     expect(() => toMinorUnits("1e2", "USD")).toThrow(/Exponent/);
@@ -53,6 +55,13 @@ describe("money", () => {
     expect(() => toMinorUnits("99999999999999999999.99", "USD")).toThrow(
       /64-bit/,
     );
+  });
+
+  it("converts shekels and rejects a yen fraction", () => {
+    expect(toMinorUnits("29.25", "ILS")).toBe(2925n);
+    expect(fromMinorUnits(2925n, "ILS")).toBe("29.25");
+    expect(toMinorUnits("1.2", "USD")).toBe(120n);
+    expect(() => toMinorUnits("100.5", "JPY")).toThrow(/fractional digits/);
   });
 
   it("accepts zero and a whole number of dollars", () => {
@@ -119,6 +128,91 @@ describe("normalizeOrderPayload", () => {
     });
     expect(normalized.gateways).toEqual([]);
     expect(normalized.isCod).toBe(false);
+  });
+
+  it("keeps a huge string id and rejects the unsafe edges", () => {
+    const huge = "9007199254740993";
+    const normalized = normalizeOrderPayload({
+      id: huge,
+      name: "#edge",
+      total_price: "1.00",
+      currency: "ils",
+      payment_gateway_names: ["manual"],
+      financial_status: "partially_paid",
+      created_at: "2026-09-22T10:00:00+03:00",
+    });
+    expect(normalized.orderId).toBe(huge);
+    expect(normalized.currency).toBe("ILS");
+    expect(normalized.isCod).toBe(false);
+
+    expect(() =>
+      normalizeOrderPayload({
+        id: Number.MAX_SAFE_INTEGER,
+        name: "#ok",
+        total_price: "1",
+        currency: "USD",
+        payment_gateway_names: [],
+        created_at: "2026-09-22T10:00:00Z",
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      normalizeOrderPayload({
+        id: "0",
+        name: "#z",
+        total_price: "1.00",
+        currency: "USD",
+        payment_gateway_names: [],
+        created_at: "2026-09-22T10:00:00Z",
+      }),
+    ).toThrow(OrderPayloadError);
+    expect(() =>
+      normalizeOrderPayload({
+        id: 1.5,
+        name: "#f",
+        total_price: "1.00",
+        currency: "USD",
+        payment_gateway_names: [],
+        created_at: "2026-09-22T10:00:00Z",
+      }),
+    ).toThrow(OrderPayloadError);
+  });
+
+  it("rejects oversized names, gateway lists, and a bad clock", () => {
+    const base = {
+      id: "50",
+      total_price: "1.00",
+      currency: "USD",
+      payment_gateway_names: ["card"],
+      created_at: "2026-09-22T10:00:00Z",
+    };
+    expect(() =>
+      normalizeOrderPayload({ ...base, name: "x".repeat(129) }),
+    ).toThrow(OrderPayloadError);
+    expect(() =>
+      normalizeOrderPayload({
+        ...base,
+        name: "#ok",
+        payment_gateway_names: Array.from({ length: 33 }, () => "card"),
+      }),
+    ).toThrow(OrderPayloadError);
+    expect(() =>
+      normalizeOrderPayload({
+        ...base,
+        name: "#ok",
+        payment_gateway_names: ["y".repeat(129)],
+      }),
+    ).toThrow(OrderPayloadError);
+    expect(() =>
+      normalizeOrderPayload({ ...base, name: "#ok", created_at: "yesterday" }),
+    ).toThrow(OrderPayloadError);
+    expect(() =>
+      normalizeOrderPayload({
+        ...base,
+        name: "#ok",
+        total_price: 10 as unknown as string,
+      }),
+    ).toThrow(OrderPayloadError);
   });
 
   it("rejects an order name that is only spaces", () => {

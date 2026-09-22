@@ -110,6 +110,36 @@ describe("webhook HMAC validation", () => {
     }
   });
 
+  it("rejects a missing delivery id and a fake content length", async () => {
+    const missingId = await authenticateWebhookRequest(
+      signedRequest(FIXED_BODY, FIXED_HMAC, { webhookId: "" }),
+      "ORDERS_CREATE",
+    );
+    expect(missingId.ok).toBe(false);
+
+    const padded = new Request(
+      "https://cod-order-watch.test/webhooks/orders/create",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Length": String(3 * 1024 * 1024),
+          "X-Shopify-Hmac-Sha256": FIXED_HMAC,
+          "X-Shopify-Shop-Domain": "demo-shop.myshopify.com",
+          "X-Shopify-Topic": "orders/create",
+          "X-Shopify-Webhook-Id": "delivery-1",
+        },
+        body: FIXED_BODY,
+      },
+    );
+    const tooBig = await authenticateWebhookRequest(padded, "ORDERS_CREATE");
+    expect(tooBig.ok).toBe(false);
+    if (!tooBig.ok) {
+      expect(tooBig.failure.status).toBe(413);
+      expect(tooBig.failure.reason).toBe("payload_too_large");
+    }
+  });
+
   it("rejects a signed null body before saving", async () => {
     const response = await ordersCreateAction(
       actionArgs(
