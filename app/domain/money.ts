@@ -10,7 +10,28 @@ export class MoneyError extends Error {
   }
 }
 
+function isSupportedCurrency(currency: string): boolean {
+  if (!/^[A-Z]{3}$/.test(currency)) {
+    return false;
+  }
+  if (typeof Intl.supportedValuesOf === "function") {
+    return Intl.supportedValuesOf("currency").includes(currency);
+  }
+  try {
+    const resolved = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+    }).resolvedOptions().currency;
+    return resolved === currency;
+  } catch {
+    return false;
+  }
+}
+
 function currencyFractionDigits(currency: string): number {
+  if (!isSupportedCurrency(currency)) {
+    throw new MoneyError(`Unsupported currency: ${currency}`);
+  }
   try {
     const formatter = new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -22,7 +43,10 @@ function currencyFractionDigits(currency: string): number {
       throw new MoneyError(`Unsupported currency: ${currency}`);
     }
     return digits;
-  } catch {
+  } catch (error) {
+    if (error instanceof MoneyError) {
+      throw error;
+    }
     throw new MoneyError(`Unsupported currency: ${currency}`);
   }
 }

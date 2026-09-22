@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isCodOrder } from "../app/domain/cod";
-import { MoneyError, fromMinorUnits, toMinorUnits } from "../app/domain/money";
+import { fromMinorUnits, toMinorUnits } from "../app/domain/money";
 import { normalizeOrderPayload } from "../app/domain/order-payload.server";
 import { OrderPayloadError } from "../app/domain/order-payload.server";
 
@@ -35,11 +35,11 @@ describe("money", () => {
   });
 
   it("rejects invalid financial data", () => {
-    expect(() => toMinorUnits("abc", "USD")).toThrow(MoneyError);
-    expect(() => toMinorUnits("-1.00", "USD")).toThrow(MoneyError);
-    expect(() => toMinorUnits("1.00", "ZZZ")).toThrow(MoneyError);
-    expect(() => toMinorUnits("1.234", "USD")).toThrow(MoneyError);
-    expect(() => toMinorUnits("1e2", "USD")).toThrow(MoneyError);
+    expect(() => toMinorUnits("abc", "USD")).toThrow(/Invalid decimal|Amount/);
+    expect(() => toMinorUnits("-1.00", "USD")).toThrow(/Negative/);
+    expect(() => toMinorUnits("1.00", "ZZZ")).toThrow(/Unsupported currency/);
+    expect(() => toMinorUnits("1.234", "USD")).toThrow(/fractional digits/);
+    expect(() => toMinorUnits("1e2", "USD")).toThrow(/Exponent/);
   });
 });
 
