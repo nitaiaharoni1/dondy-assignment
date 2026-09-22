@@ -34,6 +34,8 @@ const MALFORMED_JSON_BODY = "{";
 const MALFORMED_JSON_HMAC = "t1tE3NVjgIZCb+XuXOS6O0q8TkYTn6iB3kemkfkszJ4=";
 const UNINSTALL_BODY = '{"ok":true}';
 const UNINSTALL_HMAC = "UEM43rn6NrTn6x4B8qnhhxmpuBS4rcitUg21v3Sb4yM=";
+const INVALID_ORDER_BODY = '{"id":"42","name":"#42"}';
+const INVALID_ORDER_HMAC = "xxhAWK6cmow9i7GBs9AXdyq09tl5WgzRvyKupYwwJUc=";
 
 function orderFixture(
   overrides: Partial<NormalizedOrder> = {},
@@ -135,6 +137,18 @@ describe("webhook HMAC validation", () => {
     }
   });
 
+  it("rejects a body larger than the limit", async () => {
+    const tooBig = "x".repeat(2 * 1024 * 1024 + 1);
+    const result = await authenticateWebhookRequest(
+      signedRequest(tooBig, FIXED_HMAC),
+      "ORDERS_CREATE",
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.failure.status).toBe(413);
+    }
+  });
+
   it("rejects correctly signed malformed JSON", async () => {
     const result = await authenticateWebhookRequest(
       signedRequest(MALFORMED_JSON_BODY, MALFORMED_JSON_HMAC),
@@ -222,6 +236,30 @@ describe("order ingest transactions", () => {
 
     const dash = await getDashboardForShop(shopA);
     expect(dash.ordersReceived).toBe(1);
+  });
+
+  it("accepts and deduplicates quickly on this machine", async () => {
+    const started = Date.now();
+    const first = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-timing",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "timing-1" }),
+    });
+    const acceptedMs = Date.now() - started;
+    expect(first.status).toBe("accepted");
+
+    const retryStarted = Date.now();
+    const second = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-timing",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "timing-1" }),
+    });
+    const duplicateMs = Date.now() - retryStarted;
+    expect(second.status).toBe("duplicate");
+    expect(acceptedMs).toBeLessThan(500);
+    expect(duplicateMs).toBeLessThan(500);
   });
 
   it("keeps one order when a second delivery id arrives", async () => {
@@ -413,6 +451,52 @@ describe("order ingest transactions", () => {
       { currency: "JPY", amount: "600" },
       { currency: "USD", amount: "13.00" },
     ]);
+  });
+
+  it("returns 400 for a signed payload that is not an order", async () => {
+    const response = await ordersCreateAction(
+      actionArgs(signedRequest(INVALID_ORDER_BODY, INVALID_ORDER_HMAC)),
+    );
+    expect(response.status).toBe(400);
+    expect(await prisma.order.count()).toBe(0);
+    expect(await prisma.webhookReceipt.count()).toBe(0);
+  });
+
+  it("does not recreate a shop from an order after uninstall", async () => {
+    await purgeShopData(shopA);
+    const result = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-late",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ orderId: "late-1" }),
+    });
+    expect(result.status).toBe("unknown_shop");
+    expect(await prisma.shop.count({ where: { domain: shopA } })).toBe(0);
+    expect(await prisma.order.count({ where: { shop: shopA } })).toBe(0);
+  });
+
+  it("rolls back uninstall when shop deletion fails", async () => {
+    await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_shop_delete`);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER fail_shop_delete
+      BEFORE DELETE ON "Shop"
+      BEGIN
+        SELECT RAISE(ABORT, 'forced shop delete failure');
+      END;
+    `);
+
+    try {
+      await expect(purgeShopData(shopA)).rejects.toThrow();
+      expect(await prisma.session.count({ where: { shop: shopA } })).toBe(1);
+      expect(await prisma.shop.count({ where: { domain: shopA } })).toBe(1);
+    } finally {
+      await prisma.$executeRawUnsafe(`DROP TRIGGER IF EXISTS fail_shop_delete`);
+    }
+
+    await purgeShopData(shopA);
+    expect(await prisma.session.count({ where: { shop: shopA } })).toBe(0);
+    expect(await prisma.shop.count({ where: { domain: shopA } })).toBe(0);
+    expect(await prisma.shop.count({ where: { domain: shopB } })).toBe(1);
   });
 
   it("does not write when the signature is forged", async () => {

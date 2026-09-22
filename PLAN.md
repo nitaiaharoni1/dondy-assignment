@@ -56,7 +56,9 @@ Owner `Engineer` means the implementation work in this repository. Owner `User` 
 | P0.3 | Engineer | P0.1 | Create the public personal repository, use a repository-local personal identity, add ignore rules, and verify the published owner/visibility |
 | P0.4 | Engineer | P0.2 | Commit planning files and record honest actual elapsed time, including any unmeasured interval |
 
-P0.1 through P0.4 are complete for the planning deliverable. The integrated template is the working recommendation; the alternative is documented without claiming that the user explicitly selected a stack. All implementation tasks below remain unstarted.
+P0.1 through P0.4 are complete for the planning deliverable. The integrated template is the working recommendation; the alternative is documented without claiming that the user explicitly selected a stack.
+
+Engineer implementation through dashboard, webhooks, tests, and README is in the repository. `npm run test` passed 26 tests. A local synthetic duplicate delivery was observed. These items still need you: Partner login, `shopify app config link`, development-store install, protected customer data for development, one real COD order, and the live uninstall check. Checkboxes below were written as the plan, not as a live scoreboard.
 
 ### P1: make installation real
 

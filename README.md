@@ -69,7 +69,8 @@ npm run test           # Vitest, throwaway prisma/test.sqlite
 Duplicate-delivery demo helper (fabricated payload, same webhook id twice):
 
 ```bash
-SHOPIFY_API_SECRET=... npx tsx scripts/replay-webhook.ts \
+SHOPIFY_API_SECRET=... SHOPIFY_APP_URL=https://CURRENT_TUNNEL \
+npx tsx scripts/replay-webhook.ts \
   --url https://CURRENT_TUNNEL/webhooks/orders/create \
   --shop your-store.myshopify.com
 ```
@@ -86,14 +87,14 @@ With more time: PostgreSQL, durable intake queue, reconciliation, lifecycle gene
 
 Planning and setup count toward the assignment budget.
 
-| Activity                                       | Actual elapsed time                                                    | Evidence/status                                                          |
-| ---------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Initial reading and inspection before 13:45:12 | Unmeasured                                                             | Add if known                                                             |
-| Instrumented planning and repository setup     | 11 minutes 38 seconds                                                  | 13:45:12 to 13:56:50 Asia/Jerusalem                                      |
-| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                      |
-| Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                     |
-| Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                     |
-| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run build`, `typecheck`, `lint` succeeded; `npm run test` 21 passed |
+| Activity                                       | Actual elapsed time                                                    | Evidence/status                                                                                                                                |
+| ---------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial reading and inspection before 13:45:12 | Unmeasured                                                             | Add if known                                                                                                                                   |
+| Instrumented planning and repository setup     | 11 minutes 38 seconds                                                  | 13:45:12 to 13:56:50 Asia/Jerusalem                                                                                                            |
+| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                                                                                            |
+| Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                                                                                           |
+| Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                                                                                           |
+| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run test` 26 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
 
 ## Plan docs
 
