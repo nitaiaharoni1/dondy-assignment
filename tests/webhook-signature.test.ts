@@ -160,4 +160,38 @@ describe("webhook HMAC validation", () => {
       expect(result.failure.reason).toBe("malformed_json");
     }
   });
+
+  it("rejects a missing shop domain and a quoted shop string", async () => {
+    const missingShop = await authenticateWebhookRequest(
+      new Request("https://cod-order-watch.test/webhooks/orders/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Hmac-Sha256": FIXED_HMAC,
+          "X-Shopify-Topic": "orders/create",
+          "X-Shopify-API-Version": "2026-07",
+          "X-Shopify-Webhook-Id": "delivery-1",
+        },
+        body: FIXED_BODY,
+      }),
+      "ORDERS_CREATE",
+    );
+    expect(missingShop.ok).toBe(false);
+    if (!missingShop.ok) {
+      expect(missingShop.failure.status).toBe(400);
+      expect(missingShop.failure.reason).toBe("missing_headers");
+    }
+
+    const quoted = await authenticateWebhookRequest(
+      signedRequest(FIXED_BODY, FIXED_HMAC, {
+        shop: 'evil"shop.myshopify.com',
+      }),
+      "ORDERS_CREATE",
+    );
+    expect(quoted.ok).toBe(false);
+    if (!quoted.ok) {
+      expect(quoted.failure.status).toBe(400);
+      expect(quoted.failure.reason).toBe("invalid_shop_domain");
+    }
+  });
 });

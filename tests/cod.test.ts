@@ -28,6 +28,8 @@ describe("isCodOrder", () => {
     expect(isCodOrder(["manual payment"], "pending")).toBe(false);
     expect(isCodOrder([" MANUAL "], "PENDING")).toBe(true);
     expect(isCodOrder(["manual"], null)).toBe(false);
+    expect(isCodOrder(["cod"], "pending")).toBe(false);
+    expect(isCodOrder(["cod"], "paid")).toBe(false);
   });
 });
 

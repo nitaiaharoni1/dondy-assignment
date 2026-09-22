@@ -122,25 +122,13 @@ describe("order ingest transactions", () => {
       topic: "ORDERS_CREATE",
       order: orderFixture({ orderId: "race-1" }),
     };
-    const results = await Promise.allSettled([
+    const results = await Promise.all([
       ingestOrderCreate(input),
       ingestOrderCreate(input),
     ]);
 
-    const fulfilled = results.flatMap((result) =>
-      result.status === "fulfilled" ? [result.value.status] : [],
-    );
-    expect(
-      fulfilled.filter((status) => status === "accepted").length,
-    ).toBeLessThanOrEqual(1);
-
-    if (results.some((result) => result.status === "rejected")) {
-      const retry = await ingestOrderCreate(input);
-      expect(retry.status === "accepted" || retry.status === "duplicate").toBe(
-        true,
-      );
-    }
-
+    const statuses = results.map((result) => result.status).sort();
+    expect(statuses).toEqual(["accepted", "duplicate"]);
     expect(await prisma.order.count({ where: { shop: shopA } })).toBe(1);
     expect(await prisma.webhookReceipt.count({ where: { shop: shopA } })).toBe(
       1,

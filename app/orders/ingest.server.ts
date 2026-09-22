@@ -1,5 +1,3 @@
-import { Prisma } from "@prisma/client";
-
 import type { NormalizedOrder } from "./payload.server";
 import prisma from "../db.server";
 import { hasOfflineSession } from "./shops.server";
@@ -63,17 +61,14 @@ async function saveOrder(
   return { status: "accepted" };
 }
 
+/**
+ * After a write failure, treat an existing receipt as a duplicate outcome.
+ * Covers unique races (P2002) and SQLite busy/timeouts once the winner committed.
+ */
 async function duplicateIfReceiptExists(
   shop: string,
   webhookId: string,
-  error: unknown,
 ): Promise<IngestResult | null> {
-  if (
-    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-    error.code !== "P2002"
-  ) {
-    return null;
-  }
   const existing = await prisma.webhookReceipt.findUnique({
     where: {
       shop_webhookId: {
@@ -114,11 +109,7 @@ export async function ingestOrderCreate(input: {
       },
     );
   } catch (error) {
-    const duplicate = await duplicateIfReceiptExists(
-      shop,
-      input.webhookId,
-      error,
-    );
+    const duplicate = await duplicateIfReceiptExists(shop, input.webhookId);
     if (duplicate) {
       return duplicate;
     }
