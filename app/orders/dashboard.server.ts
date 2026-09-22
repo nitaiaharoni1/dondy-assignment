@@ -21,6 +21,7 @@ export type DashboardData = {
 
 const LATEST_ORDER_LIMIT = 20;
 
+/** One decimal place, half-up via integer math (e.g. 1/3 -> 33.3). */
 function codShare(ordersReceived: number, codOrders: number): number {
   if (ordersReceived === 0) {
     return 0;
@@ -28,6 +29,7 @@ function codShare(ordersReceived: number, codOrders: number): number {
   return Math.round((1000 * codOrders) / ordersReceived) / 10;
 }
 
+/** Prisma Json column: only keep string entries for the UI. */
 function gatewayNames(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -42,6 +44,10 @@ type OrderGroup = {
   _sum: { totalMinor: bigint | null };
 };
 
+/**
+ * Flatten groupBy(currency, isCod) into counts and per-currency minor sums.
+ * Totals include every accepted order, COD and non-COD alike.
+ */
 function foldGroups(groups: OrderGroup[]): {
   ordersReceived: number;
   codOrders: number;
@@ -62,6 +68,10 @@ function foldGroups(groups: OrderGroup[]): {
   return { ordersReceived, codOrders, totals };
 }
 
+/**
+ * Metrics for one installation. Shop domain is normalized lower-case so it
+ * matches the keys written by webhook ingest.
+ */
 export async function getDashboardForShop(
   shop: string,
 ): Promise<DashboardData> {

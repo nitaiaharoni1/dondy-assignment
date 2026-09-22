@@ -41,6 +41,7 @@ export class OrderPayloadError extends Error {
 
 const GRAPHQL_ORDER_ID = /^gid:\/\/shopify\/Order\/(\d+)$/;
 
+/** Extract the numeric id from gid://shopify/Order/{id}; reject other shapes. */
 function idFromGraphql(
   adminGraphqlApiId: string | undefined,
 ): string | undefined {
@@ -74,6 +75,7 @@ function idFromString(rawId: string): string {
   return trimmed;
 }
 
+/** Prefer GraphQL id when both fields are present; they must agree. */
 function normalizeOrderId(
   adminGraphqlApiId: string | undefined,
   rawId: string | number | undefined,
@@ -97,6 +99,7 @@ function normalizeOrderId(
   return orderId;
 }
 
+/** Trim and drop blank gateway strings; keep order, reject oversized names. */
 function normalizeGateways(names: string[]): string[] {
   const gateways: string[] = [];
   for (const name of names) {
@@ -119,6 +122,7 @@ function orderCreatedAt(value: string): Date {
   return createdAt;
 }
 
+/** Map MoneyError into OrderPayloadError so the route can return 400 uniformly. */
 function orderTotal(amount: string, currency: string): bigint {
   try {
     return toMinorUnits(amount, currency);
@@ -130,6 +134,10 @@ function orderTotal(amount: string, currency: string): bigint {
   }
 }
 
+/**
+ * Validate a Shopify orders/create JSON body into a NormalizedOrder.
+ * Blank gateways are filtered before COD classification runs.
+ */
 export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   const parsed = orderPayloadSchema.safeParse(input);
   if (!parsed.success) {

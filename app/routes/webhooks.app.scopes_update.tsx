@@ -20,6 +20,10 @@ function scopeList(payload: unknown): string[] | null {
   return current.filter((scope): scope is string => typeof scope === "string");
 }
 
+/**
+ * APP_SCOPES_UPDATE: uses authenticate.webhook because we need the session
+ * row to persist the new scope list. Unlike orders/create, token refresh is OK here.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const started = Date.now();
   const { payload, session, topic, shop } = await authenticate.webhook(request);

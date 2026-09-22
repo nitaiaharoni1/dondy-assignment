@@ -22,6 +22,7 @@ const shopify = shopifyApp({
     expiringOfflineAccessTokens: true,
   },
   hooks: {
+    // Register Shop after OAuth so orders/create can resolve the domain.
     afterAuth: async ({ session }) => {
       await registerShopFromSession(session);
     },

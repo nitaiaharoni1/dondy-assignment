@@ -14,6 +14,10 @@ const TX_TIMEOUT_MS = 1000;
 
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
+/**
+ * Shop row missing: offline Session still present means install is mid-flight
+ * (setup_incomplete). No Session means we never registered this shop (unknown_shop).
+ */
 async function missingShop(tx: Tx, shop: string): Promise<IngestResult> {
   if (await hasOfflineSession(tx, shop)) {
     return { status: "setup_incomplete" };
@@ -21,6 +25,10 @@ async function missingShop(tx: Tx, shop: string): Promise<IngestResult> {
   return { status: "unknown_shop" };
 }
 
+/**
+ * Receipt and order commit in one transaction. Upsert update is empty so the
+ * first accepted snapshot wins; a later webhook for the same orderId is a no-op.
+ */
 async function saveOrder(
   tx: Tx,
   shop: string,
@@ -84,6 +92,10 @@ async function duplicateIfReceiptExists(
   return { status: "duplicate" };
 }
 
+/**
+ * Persist an orders/create delivery. Duplicate webhookId (unique race or retry
+ * after the winner committed) returns duplicate and leaves the first snapshot.
+ */
 export async function ingestOrderCreate(input: {
   shop: string;
   webhookId: string;

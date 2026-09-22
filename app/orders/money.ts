@@ -3,6 +3,7 @@ import { Decimal } from "decimal.js";
 const INT64_MIN = -(2n ** 63n);
 const INT64_MAX = 2n ** 63n - 1n;
 
+/** Thrown when a money string or currency cannot be stored safely as minor units. */
 export class MoneyError extends Error {
   constructor(message: string) {
     super(message);
@@ -10,6 +11,7 @@ export class MoneyError extends Error {
   }
 }
 
+/** Prefer Intl.supportedValuesOf; fall back to constructing a currency formatter. */
 function isSupportedCurrency(currency: string): boolean {
   if (!/^[A-Z]{3}$/.test(currency)) {
     return false;
@@ -28,6 +30,7 @@ function isSupportedCurrency(currency: string): boolean {
   }
 }
 
+/** ISO-4217 fraction digits for the currency (e.g. 2 for USD, 0 for JPY). */
 function currencyFractionDigits(currency: string): number {
   if (!isSupportedCurrency(currency)) {
     throw new MoneyError(`Unsupported currency: ${currency}`);
@@ -51,6 +54,10 @@ function currencyFractionDigits(currency: string): number {
   }
 }
 
+/**
+ * Accept only non-negative plain decimal strings (no exponents).
+ * Floating-point parse would lose cents; Decimal keeps exact scale.
+ */
 function parseAmount(amount: string): Decimal {
   if (typeof amount !== "string" || amount.trim() === "") {
     throw new MoneyError("Amount must be a non-empty decimal string");
@@ -78,6 +85,7 @@ function parseAmount(amount: string): Decimal {
   return decimal;
 }
 
+/** Scale must already be an integer; result must fit signed Prisma BigInt (int64). */
 function minorFromScaled(scaled: Decimal): bigint {
   let minor: bigint;
   try {
@@ -92,8 +100,8 @@ function minorFromScaled(scaled: Decimal): bigint {
 }
 
 /**
- * Convert a Shopify decimal money string into signed 64-bit minor units.
- * Never uses floating-point multiplication.
+ * Store money as integer minor units (cents, yen, etc.) for DB aggregates.
+ * Uses Decimal scale, never JS floating-point multiplication.
  */
 export function toMinorUnits(amount: string, currency: string): bigint {
   const decimal = parseAmount(amount);
@@ -107,7 +115,10 @@ export function toMinorUnits(amount: string, currency: string): bigint {
   return minorFromScaled(scaled);
 }
 
-/** Reconstruct an exact decimal string from minor units (for loader/JSON). */
+/**
+ * Reconstruct an exact decimal string from minor units for loader/JSON.
+ * Always pads to the currency's fraction digits so UI totals stay stable.
+ */
 export function fromMinorUnits(minor: bigint, currency: string): string {
   const fractionDigits = currencyFractionDigits(currency);
   const decimal = new Decimal(minor.toString()).div(

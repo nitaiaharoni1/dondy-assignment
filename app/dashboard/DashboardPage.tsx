@@ -136,6 +136,10 @@ function Populated({ data }: { data: DashboardData }) {
   );
 }
 
+/**
+ * Render success or soft-failure dashboard payload from the home loader.
+ * Refresh uses revalidator so metrics reload without a full navigation.
+ */
 export function DashboardPage({ payload }: { payload: DashboardPayload }) {
   const revalidator = useRevalidator();
   const navigation = useNavigation();

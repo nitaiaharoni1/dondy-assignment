@@ -7,6 +7,10 @@ import { shopLogToken } from "../webhooks/log.server";
 
 const TOPIC = "APP_UNINSTALLED";
 
+/**
+ * APP_UNINSTALLED: same session-independent HMAC path as orders/create.
+ * Purge sessions and Shop (orders/receipts cascade); safe if already gone.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const started = Date.now();
   const auth = await authenticateWebhookRequest(request, TOPIC);

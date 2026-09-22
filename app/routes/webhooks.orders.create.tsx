@@ -16,6 +16,11 @@ function invalidReason(error: unknown): string {
   return "invalid_payload";
 }
 
+/**
+ * ORDERS_CREATE: raw-body HMAC via authenticateWebhookRequest (not
+ * authenticate.webhook, which can refresh tokens). setup_incomplete -> 503 so
+ * Shopify retries until Shop registration finishes; duplicate -> 200.
+ */
 export const action = async ({ request }: ActionFunctionArgs) => {
   const started = Date.now();
   const auth = await authenticateWebhookRequest(request, TOPIC);

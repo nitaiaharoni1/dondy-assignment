@@ -4,11 +4,13 @@ type LogLevel = "info" | "error";
 
 type LogValue = string | number;
 
+/** Opaque shop token for logs: sha256 prefix, never the raw myshopify domain. */
 export function shopLogToken(shop: string): string {
   const digest = createHash("sha256").update(shop).digest("hex").slice(0, 12);
   return `shop_${digest}`;
 }
 
+/** One JSON line per webhook outcome, including durationMs from `started`. */
 export function logWebhook(
   level: LogLevel,
   started: number,

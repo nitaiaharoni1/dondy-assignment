@@ -14,6 +14,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
+/** Minimal shopifyApi client for HMAC validation only (no session storage). */
 function webhookApi() {
   const appUrl = requireEnv("SHOPIFY_APP_URL");
   const hostName = new URL(appUrl).host;
@@ -59,6 +60,10 @@ function mergeChunks(chunks: Uint8Array[], total: number): string {
   return new TextDecoder("utf-8").decode(merged);
 }
 
+/**
+ * Read the request body as a raw UTF-8 string for HMAC.
+ * Cap at MAX_BODY_BYTES so a huge Content-Length or stream cannot exhaust memory.
+ */
 async function readBoundedRawBody(
   request: Request,
 ): Promise<
@@ -101,6 +106,7 @@ async function readBoundedRawBody(
   return { ok: true, rawBody: mergeChunks(chunks, total) };
 }
 
+/** Enforce expected topic, myshopify domain shape, and X-Shopify-Webhook-Id. */
 function rejectDelivery(
   validation: { topic: string; domain: string; webhookId: string },
   expectedTopic: string,
@@ -129,7 +135,8 @@ function parsePayload(
 
 /**
  * Session-independent webhook authentication: raw body + official SDK validator.
- * Does not load, refresh, or persist access tokens.
+ * Do not use shopify.authenticate.webhook here: that path can load/refresh tokens.
+ * Safe for orders/create and app/uninstalled where we must not touch sessions.
  */
 export async function authenticateWebhookRequest(
   request: Request,

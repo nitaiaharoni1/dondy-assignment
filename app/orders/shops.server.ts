@@ -6,10 +6,15 @@ import prisma from "../db.server";
 type DbClient =
   PrismaClient | Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
+/** Case-insensitive shop key: trim + lowercase. All shop lookups use this form. */
 export function normalizeShopDomain(shopDomain: string): string {
   return shopDomain.trim().toLowerCase();
 }
 
+/**
+ * Offline Session present for this domain (SQL lower match). Used to tell
+ * unknown_shop apart from setup_incomplete when the Shop row is missing.
+ */
 export async function hasOfflineSession(
   db: DbClient,
   domain: string,
@@ -25,6 +30,10 @@ export async function hasOfflineSession(
 type Registration =
   { ok: true } | { ok: false; reason: "missing_offline_session" };
 
+/**
+ * Upsert Shop only after an offline Session exists. update: {} keeps installedAt.
+ * Non-.myshopify.com domains are rejected with the same failure reason.
+ */
 async function registerInstalledShop(
   shopDomain: string,
   db: DbClient,
@@ -61,6 +70,7 @@ export async function ensureShopRegistered(
   return registerInstalledShop(shopDomain, db);
 }
 
+/** Offline sessions only: online tokens must not create the Shop row. */
 export async function registerShopFromSession(session: Session): Promise<void> {
   if (session.isOnline) {
     return;

@@ -9,6 +9,10 @@ import { getDashboardForShop } from "../orders/dashboard.server";
 import { ensureShopRegistered } from "../orders/shops.server";
 import { authenticate } from "../shopify.server";
 
+/**
+ * Embedded app home: ensure Shop is registered, then load dashboard metrics.
+ * Registration failure is a soft error payload so the UI can show retry copy.
+ */
 export const loader = async ({
   request,
 }: LoaderFunctionArgs): Promise<DashboardPayload> => {
@@ -36,6 +40,7 @@ export default function Index() {
   return <DashboardPage payload={useLoaderData<typeof loader>()} />;
 }
 
+/** Embedded admin responses must not be cached by the browser or CDN. */
 export const headers: HeadersFunction = (headersArgs) => {
   const headers = boundary.headers(headersArgs);
   headers.set("Cache-Control", "private, no-store");
