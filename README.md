@@ -2,6 +2,20 @@
 
 An embedded Shopify app for seeing how many received orders are Cash-On-Delivery (COD).
 
+## Demo
+
+Recorded on 22 Sep 2026 on development store Quick Start (`quick-start-688d1411`).
+
+**Real store order.** Creating order #1011 in the store (payment due later, empty gateway list). The dashboard moves from empty to 1 order, 0 COD, COD No. [MP4](docs/demo/live-store.mp4)
+
+![Live store test](docs/demo/live-store.gif)
+
+**Same delivery twice.** A signed Cash on Delivery order is posted, then the exact same delivery is posted again. Counts move to 2 orders, 1 COD, 50%, and stay there. [MP4](docs/demo/same-delivery.mp4)
+
+![Same delivery twice](docs/demo/same-delivery.gif)
+
+Stills: [empty](docs/demo/01-empty.png), [order #1011](docs/demo/02-order.png), [after webhook](docs/demo/03-dashboard.png), [before duplicate](docs/demo/04-before-duplicate.png), [after COD](docs/demo/05-after-cod.png), [after repeat](docs/demo/06-same-after-duplicate.png).
+
 ## What it does
 
 - Accepts signed `orders/create` webhook deliveries and stores one order per shop and Shopify order ID.
@@ -81,21 +95,9 @@ npx tsx scripts/replay-webhook.ts \
 
 Refresh the dashboard after webhooks; the open browser does not update by itself.
 
-## Live recording
+## Live recording notes
 
-Recorded on 22 Sep 2026 inside the development store Quick Start (`quick-start-688d1411`). The dashboard opened in Shopify admin and started empty. Existing test orders from 2023 were not imported.
-
-Order **#1011** was then created in that store: one custom item, payment due later, no gateway name. Shopify delivered `orders/create` (accepted in 46 ms). The dashboard then showed 1 order received, 0 COD orders, 0.0% share, and ILS 29.25. The row is COD No, because the gateway list was empty. That matches the rule.
-
-![Live store test](docs/demo/live-store.gif)
-
-Stills: [empty dashboard](docs/demo/01-empty.png), [order #1011](docs/demo/02-order.png), [dashboard after the webhook](docs/demo/03-dashboard.png). [MP4](docs/demo/live-store.mp4).
-
-The first clip does not show the "send the same delivery twice" step. That is the next clip. A signed `orders/create` for **#COD-9101** (gateway `Cash on Delivery`) was posted to the running app, then the exact same bytes and the same webhook id were posted again. Both answers were HTTP 200. One receipt was stored. The dashboard moved from 1 order and 0% COD to 2 orders, 1 COD order, and 50.0%, then stayed there after the repeat.
-
-![Same delivery twice](docs/demo/same-delivery.gif)
-
-Stills: [before](docs/demo/04-before-duplicate.png), [after the cash order](docs/demo/05-after-cod.png), [after the same delivery again](docs/demo/06-same-after-duplicate.png). [MP4](docs/demo/same-delivery.mp4).
+Clips and stills are in [Demo](#demo) above. Extra detail from that session: the dashboard started empty (2023 test orders were not imported). Order **#1011** was one custom item, payment due later, no gateway name; Shopify accepted `orders/create` in 46 ms and showed 1 order, 0 COD, 0.0%, ILS 29.25, COD No. The duplicate clip used signed payload **#COD-9101** (gateway `Cash on Delivery`); both posts returned HTTP 200, one receipt was stored, and totals stayed at 2 orders, 1 COD, 50.0%.
 
 ## Key decisions
 
@@ -111,7 +113,7 @@ Stills: [before](docs/demo/04-before-duplicate.png), [after the cash order](docs
 
 | Task item                                   | Where                                        | Status                                                                |
 | ------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
-| Embedded app on a development store         | `npm run dev`                                | Installed on Quick Start (`quick-start-688d1411`). See Live recording |
+| Embedded app on a development store         | `npm run dev`                                | Installed on Quick Start (`quick-start-688d1411`). See Demo |
 | `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                              |
 | Raw-body HMAC                               | `app/webhooks/authenticate.server.ts`        | SDK validator. Fixed signature test passes                            |
 | Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this            |
