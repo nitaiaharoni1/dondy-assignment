@@ -12,7 +12,7 @@ The source assignment and invitation are not copied into this public repository.
 | --- | --- | --- | --- |
 | R01 | Embedded app on a development store | Official CLI React Router template; managed Shopify authentication and App Bridge | App opens inside the store admin with a valid authenticated session |
 | R02 | Declarative order subscription | One `orders/create` subscription in `shopify.app.toml` with a relative delivery URL | Subscription visible in development configuration; real order delivery reaches the route |
-| R03 | Raw-body HMAC verification | Shopify authentication helper before any body parsing; inspect the locked SDK implementation | Valid fixed signature accepted; a changed byte and invalid signatures rejected before application writes |
+| R03 | Raw-body HMAC verification | Official Shopify SDK webhook validator before JSON parsing, independent of token refresh | Valid fixed signature accepted; a changed byte and invalid signatures rejected before application writes |
 | R04 | Delivery idempotency | Unique `(shop, webhookId)` receipt and atomic order persistence | Identical delivery repeated and delivered concurrently produces one accepted order |
 | R05 | Fast and safe acknowledgement | Small synchronous database transaction, followed by HTTP 200 | Timing recorded for accepted and duplicate deliveries; failed persistence is not acknowledged as success |
 | R06 | Required order fields | Shop, string order ID, name, exact total/currency, gateway names, creation timestamp, COD flag | Persisted record matches the normalized authenticated payload |
@@ -38,6 +38,7 @@ The grading puts the most weight on webhook correctness (30%), followed by data/
 7. **Fast 200 does not mean detached work.** Persist before acknowledging. A durable queue would be an alternative, but an unawaited promise or timer is not a queue.
 8. **Choose the fixed-payload HMAC unit test as the one bonus.** The rubric already expects meaningful tests; do not interpret the bonus section as permission to omit all baseline tests.
 9. **Use development configuration synchronization.** A local demo does not require hosting or a production app release. Inspect CLI behavior before running commands that publish shared configuration.
+10. **Incomplete registration is retryable.** If an offline session exists but the installation record is not ready, an order delivery gets 503 instead of being discarded as unknown. Webhooks cannot register a shop themselves.
 
 ## Constraints and explicit limits
 

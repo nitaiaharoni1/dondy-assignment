@@ -24,6 +24,7 @@ This is the recommended default, pending a different stack preference. React, Ty
 
 - Accept signed `orders/create` deliveries and persist one order per shop and Shopify order ID.
 - Record delivery IDs and orders in the same database transaction. A retry cannot count an order twice.
+- Verify webhooks through Shopify's SDK without refreshing access tokens. Retry incomplete shop registration instead of silently dropping the order.
 - Show received-order count, COD count, COD percentage, order value by currency, and the latest 20 orders for the signed-in shop.
 - Delete the shop's orders, delivery receipts, installation record, and Shopify sessions on `app/uninstalled`.
 - Start with an honest empty state. Existing store orders are not automatically imported.
@@ -48,6 +49,7 @@ Planning and setup count toward the assignment budget; estimates are not actual 
 | --- | --- | --- |
 | Initial reading and inspection before 13:45:12 | Unmeasured | Must be added by the candidate if known |
 | Instrumented planning and repository setup | 11 minutes 38 seconds through final content review | 13:45:12 to 13:56:50 Asia/Jerusalem; final commit/push overhead excluded |
+| Follow-up planning audit and corrections | 5 minutes 15 seconds through final content review | 13:59:26 to 14:04:41 Asia/Jerusalem; final commit/push overhead excluded |
 | Application implementation | 0 minutes | Not started |
 | Store setup, installation, and live demo | 0 minutes in this project session | Not performed |
 | Builds and tests | 0 minutes | Not performed |

@@ -10,6 +10,7 @@
 | React application | Official Shopify React Router TypeScript template with Vite | Reuses embedded authentication, App Bridge, routing, and development tooling |
 | UI | Polaris web components and the template's Polaris types | Meets the assignment and follows the currently inspected template; do not mix old Polaris React examples into it without checking compatibility |
 | Backend | React Router server loaders/actions | Webhook endpoints and dashboard reads fit one process and one authentication boundary |
+| Webhook verification | Official `@shopify/shopify-api` webhook validator, using the template's compatible adapter | Validates raw bytes without loading or refreshing offline access tokens; keep template authentication for admin routes |
 | Persistence | Template Prisma client and SQLite | Built-in session storage and migrations; appropriate for one local demo process, not distributed production writes |
 | Input contracts | Zod schemas, inferred TypeScript types | Validate untrusted runtime values without a separate decorator framework |
 | Money conversion | decimal.js plus integer minor units | Exact conversion from decimal strings; database sums stay integer based |
@@ -52,6 +53,7 @@ Extend the generated template, preserving its root document, headers, authentica
 ```text
 app/
   shopify.server.ts                  existing Shopify configuration/authentication
+  webhooks.server.ts                 bounded raw-body read and official SDK validation
   db.server.ts                       existing singleton Prisma client
   routes/
     app.tsx                          existing authenticated embedded layout
@@ -95,7 +97,9 @@ Only committed receipts represent completed work. There is no `processing` state
 
 The generated session table can contain multiple sessions per shop, so do not use a single session ID as the order owner. Session deletion is part of uninstall's explicit transaction because it is not tied to the new `Shop` foreign key.
 
-Create the installation record in the template's supported authenticated lifecycle hook, with an idempotent upsert that preserves `installedAt` on ordinary reauthentication. Verify the locked template's hook timing at scaffold time. Do not create installations from webhook payloads or from an unverified `shop` query parameter. A dashboard loader with no installation record reports a recoverable setup error rather than creating an unauthenticated shop.
+Create the installation record in the template's supported authenticated lifecycle hook, with an idempotent upsert that preserves `installedAt` on ordinary reauthentication. Share this small registration function with the dashboard loader, which may call it only after `authenticate.admin(request)` succeeds. This also handles a dev store authenticated before the new hook was added. In the registration transaction, confirm the matching persisted offline session still exists before creating `Shop`; do not use an already-deleted session from memory. Verify the locked template's hook timing at scaffold time. Webhook routes never create installations, and a client-supplied `shop` value is never registration authority.
+
+There is a meaningful distinction between an unknown shop and incomplete registration. If `Shop` is absent but its offline session exists, return 503 from order intake and emit a setup diagnostic so Shopify can retry after authenticated registration succeeds. Only when both installation and offline session are absent is the delivery treated as unknown/uninstalled and ignored. Creating a dev-store order before the initial authenticated setup has finished is outside the collection window; show readiness before calling setup complete. Failure of either lookup is an infrastructure failure, not evidence of an unknown shop.
 
 **ID precision:** prefer the numeric suffix of validated `admin_graphql_api_id` (`gid://shopify/Order/...`) as the canonical order ID. If unavailable, accept a decimal string ID or a positive safe integer only. Reject unsafe numeric IDs rather than converting an already-rounded JavaScript number into a string. If both safely readable forms exist, require agreement.
 
@@ -106,8 +110,8 @@ Create the installation record in the template's supported authenticated lifecyc
 ## Payload and transport validation
 
 1. Accept POST only, and enforce a request-size ceiling at the server adapter before buffering. Start with 2 MiB for the demo, verify it against actual sample payloads, and document that larger orders are rejected. Do not rely solely on `Content-Length`; chunked input also needs a limit. Do not install a JSON body parser ahead of signature validation.
-2. Pass the untouched request to `authenticate.webhook(request)`. Do not call `json()` or `text()` first, then pass the consumed request to it.
-3. Verify the installed SDK's call chain and tests. The researched source reads request text, validates the signature, then parses JSON. Its HMAC validator uses the app secret and base64 digest; its comparison checks equal-length buffers without an early exit on differing content. Do not claim it literally calls Node's `crypto.timingSafeEqual` when the inspected implementation uses its own comparison routine.
+2. In a small shared server helper, read the bounded raw body exactly once and call the official `webhookApi.webhooks.validate({ rawBody, rawRequest: request })` using the compatible adapter already installed by the template. Configure this validator from the same validated app configuration. Add `@shopify/shopify-api` as an explicit direct dependency matching the template's resolved compatible version; do not rely on accidental transitive access. Do not invent a `shopify.api` property on the React Router app object or import private SDK internals.
+3. Verify the installed SDK's call chain and tests. Only after successful signature/header validation, parse the original body inside a narrow `JSON.parse` error boundary and map malformed JSON to 400. The HMAC validator uses the app secret and base64 digest; its comparison checks equal-length buffers without an early exit on differing content. Do not claim it literally calls Node's `crypto.timingSafeEqual` when the inspected implementation uses its own comparison routine. The helper returns a minimal validated context plus an `unknown` payload; it never loads, refreshes, or saves access tokens.
 4. Require a delivery ID, well-formed canonical `*.myshopify.com` domain, expected webhook topic, and supported payload shape. Match the SDK's topic representation, which can be an enum-style name instead of the wire `orders/create` spelling.
 5. Treat the returned payload as `unknown` at the application boundary. Parse only the order fields needed by the app; strip unrelated keys. Customer names, addresses, email, phone, and line-item details are not persisted.
 6. Require valid order identity/name, money/currency, creation timestamp, a string array of gateway names, and a supported nullable financial status. An empty gateway array is valid and non-COD; a missing required gateway field is malformed, not silently replaced with fabricated data.
@@ -115,7 +119,9 @@ Create the installation record in the template's supported authenticated lifecyc
 
 HMAC covers the body, not arbitrary headers or a payload timestamp. Use HTTPS, Shopify's validated request context, fixed route/topic checks, the local installation registry, and scoped data access together. Do not describe a valid HMAC as independently signing the shop header. Do not reject legitimate delayed deliveries using a newly invented timestamp-signature scheme.
 
-The current upstream authentication helper can consult and refresh offline sessions. Therefore "no custom outbound calls in the handler" does not prove the entire helper is network-free. Inspect the resolved version and measure it. If it makes the acknowledgement deadline unreliable, use the official lower-level webhook validator with local installation checks for these routes, rather than rewriting cryptography. Keep this compatibility check early, particularly for uninstall events where a session may be absent or invalidated.
+The inspected `authenticate.webhook()` source validates the body, then can refresh and persist an expiring offline session before returning the parsed payload. That behavior is unnecessary for this app's webhook routes and can fail after an uninstall revokes the token. It can also race with cleanup by writing a refreshed session after deletion. Therefore the selected webhook path uses the SDK's lower-level validator from the outset, with local installation checks in the domain transaction. This retains official signature handling without depending on a live Admin API token. Template `authenticate.admin()` remains responsible for embedded admin authentication.
+
+Explain both paths in the walkthrough: the template helper is convenient when a webhook needs an Admin API client, while this app needs only signature validation and local persistence. Test the exact lower-level validator used in production rather than a separate hand-written HMAC verifier.
 
 ## Transaction and idempotency
 
@@ -124,7 +130,9 @@ For a valid normalized `orders/create` event:
 ```text
 authenticate raw request and validate selected payload fields
 start one bounded database transaction
-  confirm Shop exists for the authenticated shop
+  check Shop for the validated shop
+    absent with offline session: return retryable setup failure
+    absent without offline session: ignore as unknown/uninstalled
   insert WebhookReceipt(shop, webhookId, topic)
   upsert Order by (shop, orderId)
     create: normalized fields
@@ -135,7 +143,7 @@ return 200
 
 If the receipt already exists, roll back this attempt and return 200. Handle only the receipt's unique-conflict case as a duplicate; do not convert every Prisma error into success. Confirm the same receipt key exists if the database's error metadata does not identify the constraint reliably. Business-key uniqueness also prevents two different delivery IDs for the same order from producing two rows.
 
-The installation check and writes share the transaction. SQLite's single-writer behavior, foreign keys, and bounded transaction retries govern races. An order that commits before uninstall is removed by uninstall. An order arriving after uninstall cannot recreate `Shop`; it is ignored. A concurrent conflict is retried within the response budget or returned as a retriable failure, not silently acknowledged.
+The installation check and writes share the transaction. SQLite's single-writer behavior, foreign keys, and bounded transaction wait/work govern races. An order that commits before uninstall is removed by uninstall. An order arriving after uninstall cannot recreate `Shop`; it is ignored. Unresolved lock or write conflicts return a retryable failure for Shopify to redeliver, rather than looping inside the request or acknowledging lost work.
 
 No counters are incremented separately. Dashboard metrics derive from stored orders, so an interrupted request cannot leave counts detached from the records.
 
@@ -145,8 +153,9 @@ No counters are incremented separately. Dashboard metrics derive from stored ord
 | Previously committed delivery | 200 | No additional order |
 | Same order with a new delivery ID | 200 | New receipt, existing order unchanged |
 | Valid delivery for an unknown/uninstalled shop | 200 | No shop, order, or receipt created; sanitized ignored-event log |
+| Missing installation record but existing offline session | 503 | No receipt/order writes; retry after authenticated registration |
 | Invalid signature | 401 | No application writes |
-| Missing authentication headers | SDK 400/401, document exact locked behavior | No application writes |
+| Missing authentication headers | 400 from wrapper's validation-result mapping | No application writes |
 | Signed malformed JSON or invalid required fields | 400 | No application writes; sanitized validation reason |
 | Wrong topic for route | 400 | No writes |
 | Non-POST | 405 | No writes |
@@ -157,15 +166,15 @@ Shopify can retry permanent 4xx failures too; they are not a magic retry-suppres
 
 ## Uninstall lifecycle
 
-Authenticate the raw uninstall request and require the uninstall topic. In one transaction, delete every `Session` for the shop and delete its `Shop` record; cascade deletion removes all orders and receipts. Do this even when `session` is undefined. An already-missing shop is successful cleanup. No permanent uninstall receipt is necessary: deletion itself is idempotent, and the requirement is to remove shop-owned data.
+Validate the raw uninstall request using the same session-independent SDK validator and require the uninstall topic. In one transaction, delete every `Session` for the shop and delete its `Shop` record; cascade deletion removes all orders and receipts. Do this even when no session exists, or a stored token has expired or been revoked. An already-missing shop is successful cleanup. No permanent uninstall receipt is necessary: deletion itself is idempotent, and the requirement is to remove shop-owned data.
 
 Do not contact the Admin API to authorize deletion after uninstall; the access token may already be revoked. Do not persist an uninstall payload. Test rollback if any cleanup statement fails.
 
-This prevents normal post-uninstall order deliveries from recreating data. A delayed uninstall from a previous installation arriving after a rapid reinstall is a separate lifecycle-generation problem. The baseline does not claim to solve it using an unsigned timestamp header. Call it out and add a verified installation-generation strategy before production.
+This prevents normal post-uninstall order deliveries from recreating data, including session refreshes originating from webhook handlers. A delayed uninstall from a previous installation arriving after a rapid reinstall, or an already-running admin authentication flow completing after uninstall, is a separate lifecycle-generation problem. The baseline does not claim to solve either using an unsigned timestamp header. Call them out and add a verified installation-generation strategy before production.
 
 ## Dashboard contract and UI
 
-The `/app` dashboard loader authenticates the admin request independently of the parent layout. Child loaders must not assume the parent completed first. Derive shop ownership from the authenticated server session, never from a client-supplied shop or request body.
+The `/app` dashboard loader authenticates the admin request independently of the parent layout. Child loaders must not assume the parent completed first. Derive shop ownership from the authenticated server session, never from a client-supplied shop or request body. Complete the authenticated registration check described above before querying metrics; setup failures get a recoverable error response.
 
 Within a consistent database read transaction:
 
@@ -202,7 +211,7 @@ Send private no-store responses for merchant data. Preserve Shopify's generated 
 
 ## Performance and production direction
 
-Local targets are goals until measured: accepted/duplicate webhook acknowledgement p95 below 500 ms with a warm process, and dashboard loader p95 below 250 ms on roughly 1,000 fabricated orders. The five-second Shopify delivery limit is the external constraint. Keep a transaction deadline comfortably below it; budget for tunnel, authentication, and response overhead. Prisma transaction timeouts alone do not bound the entire request, and a `Promise.race` timeout does not cancel a database write.
+Local targets are goals until measured: accepted/duplicate webhook acknowledgement p95 below 500 ms with a warm process, and dashboard loader p95 below 250 ms on roughly 1,000 fabricated orders. The five-second Shopify delivery limit is the external constraint. Start with a 500 ms transaction acquisition wait and a 1,000 ms transaction execution limit, adjusted only from measurements; do not add in-process retries in the baseline. Return a retryable failure on database contention. Budget separately for raw-body reading, validation, tunnel, and response overhead. Prisma transaction timeouts alone do not bound the entire request, and a `Promise.race` timeout does not cancel a database write.
 
 The order list is indexed and bounded. Aggregation still scans the current shop's orders; that is acceptable for the demo and explicitly not constant-time at scale. Do not load every complete order into Node or add one database query per displayed row. Avoid caches for now because cross-shop keys and invalidation would add risk without demonstrated need.
 
@@ -217,6 +226,7 @@ Checked on 2026-09-22. These are reference versions, not the future application'
 - [Template dashboard using Polaris web components](https://github.com/Shopify/shopify-app-template-react-router/blob/main/app/routes/app._index.tsx)
 - [Webhook authentication API](https://shopify.dev/docs/api/shopify-app-react-router/latest/authenticate/webhook)
 - [Authentication implementation](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-app-react-router/src/server/authenticate/webhooks/authenticate.ts)
+- [Session-independent webhook validator](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/lib/webhooks/validate.ts) and [offline-token refresh behavior](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-app-react-router/src/server/helpers/ensure-offline-token-is-not-expired.ts)
 - [HMAC validator](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/lib/utils/hmac-validator.ts) and [comparison implementation](https://github.com/Shopify/shopify-app-js/blob/main/packages/apps/shopify-api/lib/auth/oauth/safe-compare.ts)
 - [Webhook delivery verification and timeouts](https://shopify.dev/docs/apps/build/webhooks/verify-deliveries)
 - [Subscription setup and order-access prerequisites](https://shopify.dev/docs/apps/build/webhooks/get-started?deliveryMethod=https)

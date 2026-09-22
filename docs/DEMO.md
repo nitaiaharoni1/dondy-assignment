@@ -31,12 +31,12 @@ Requirements for the utility:
 - Require an explicit known development shop and destination URL; no production default.
 - Check the destination against the expected current dev tunnel before sending a signed body.
 - Keep raw bytes identical; do not parse and reserialize between requests.
-- Set the same `X-Shopify-Webhook-Id`, HMAC, shop, API version, and topic headers on both sends.
+- Set `Content-Type: application/json` and the same `X-Shopify-Webhook-Id`, HMAC, shop, API version, and topic headers on both sends.
 - Use a fixed fabricated order identity, not a real customer's payload.
 - Print status, duration, and ID only. Never print the secret or signature.
 - Before a second run, either intentionally demonstrate another replay or choose a fresh event and order ID with clear expected results. Do not use a demo "reset database" button.
 
-The CLI's `shopify app webhook trigger` is useful for sending synthetic events, but separate invocations may have different delivery IDs. A unchanged order count in that case can prove business-key deduplication while failing to exercise receipt-ID deduplication. Explain the distinction.
+The CLI's `shopify app webhook trigger` is useful for sending synthetic events, but separate invocations may have different delivery IDs. An unchanged order count in that case can prove business-key deduplication while failing to exercise receipt-ID deduplication. Explain the distinction.
 
 ## Code walkthrough notes
 
@@ -47,6 +47,8 @@ The CLI's `shopify app webhook trigger` is useful for sending synthetic events, 
 **Why two uniqueness constraints:** delivery identity prevents repeating the same delivery; `(shop, orderId)` prevents two different delivery IDs from creating the same business order twice.
 
 **Why await a short transaction:** there is no slow business work here. Returning 200 before an in-memory task finishes risks permanent loss after a crash. If processing becomes slow, introduce a durable queue and acknowledge durable enqueue.
+
+**Why use the lower-level Shopify webhook validator:** the convenient template helper may refresh a token before returning. Order storage and uninstall cleanup do not need an Admin API token, so the official signature/header validator is sufficient. It also lets cleanup work after the token is revoked. This is reuse of Shopify's validation code, not custom cryptography.
 
 **Why the dashboard refreshes explicitly:** a webhook changes the database, not an already-open browser. Refresh fetches a new authenticated snapshot without adding a second push-notification system.
 
@@ -60,9 +62,9 @@ The CLI's `shopify app webhook trigger` is useful for sending synthetic events, 
 | --- | --- |
 | What if two copies arrive at once? | Database uniqueness and one transaction decide the winner, not a prior in-memory check |
 | What if the database is unavailable? | Do not acknowledge lost work; return failure for Shopify retry and log a safe diagnostic |
-| Can an unknown shop send orders? | Valid signature is insufficient to create an installation; ignore unknown shops with no persisted order |
+| Can an unknown shop send orders? | A valid signature cannot create an installation. Ignore shops with neither registry entry nor session; retry incomplete registration when an offline session exists |
 | What if the signature has the wrong length? | SDK validation rejects it safely; explain the actual comparison implementation of the installed version |
-| What if the SDK session is gone at uninstall? | Cleanup is keyed by verified webhook context and must not depend on a remaining session |
+| What if the SDK session is gone at uninstall? | The selected validator does not load or refresh sessions; cleanup uses its validated shop context and works with missing or revoked tokens |
 | Does a manual pending payment always mean cash? | No. It is the assignment's explicit heuristic and can misclassify other manual payments |
 | Do the numbers update after refunds or cancellation? | Not in the create-only baseline; that is documented scope, not silently correct accounting |
 | What prevents data leaking between merchants? | Authenticated server shop identity, mandatory scoped queries, compound keys, and isolation cases |

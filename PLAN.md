@@ -30,7 +30,7 @@ If the 270-minute target is exceeded, the additional 60-minute hard-cap allowanc
 
 The invitation's deadline is **2026-09-22 17:00 Asia/Jerusalem**. At the first recorded planning timestamp, 13:45:12, 194m48s remained. Recalculate at implementation start. Reserve 20 minutes before the deadline for the README, a clean commit/push, and the user's submission. This plan does not submit anything on the user's behalf.
 
-If approximately 160 implementation minutes remain, use this compressed allocation:
+If approximately 160 total minutes remain, including the 20-minute handoff reserve, use this compressed allocation:
 
 | Work | Minutes | Cut before weakening correctness |
 | --- | ---: | --- |
@@ -56,6 +56,8 @@ Owner `Engineer` means the implementation work in this repository. Owner `User` 
 | P0.3 | Engineer | P0.1 | Create the public personal repository, use a repository-local personal identity, add ignore rules, and verify the published owner/visibility |
 | P0.4 | Engineer | P0.2 | Commit planning files and record honest actual elapsed time, including any unmeasured interval |
 
+P0.1 through P0.4 are complete for the planning deliverable. The integrated template is the working recommendation; the alternative is documented without claiming that the user explicitly selected a stack. All implementation tasks below remain unstarted.
+
 ### P1: make installation real
 
 - [ ] **P1.1, User + Engineer, after P0.2:** confirm the intended Partner organization and dev store. Use read-only inspection first. Resolve login or terms through the user. Acceptance: known development store, not a production merchant store.
@@ -69,7 +71,7 @@ Owner `Engineer` means the implementation work in this repository. Owner `User` 
 ### P2: establish quality without rebuilding the template
 
 - [ ] **P2.1, Engineer, after P1.3:** enable strict compiler options and compatible typed lint rules from [Quality](docs/QUALITY.md). Reuse existing ESLint plugins/configuration. Acceptance: no blanket `any`, disabled promise checks, or broad ignore patterns to hide application errors.
-- [ ] **P2.2, Engineer, after P2.1:** preserve `dev`, `build`, `typecheck`, and `lint`; add formatter check and focused test commands. Keep tests out of automatically invoked checks unless explicitly requested. Acceptance: scripts are documented and do not deploy or mutate a database unexpectedly.
+- [ ] **P2.2, Engineer, after P2.1:** install Zod, decimal.js, and a compatible direct `@shopify/shopify-api` dependency; add Vitest as a development dependency. Preserve `dev`, `build`, `typecheck`, and `lint`; add formatter check and focused test commands. Keep tests out of automatically invoked checks unless explicitly requested. Acceptance: one reviewed lockfile, no unused dependencies, and scripts that do not deploy or mutate a database unexpectedly.
 - [ ] **P2.3, Engineer, after P1.4:** remove generated demo product actions, dead imports, and extra demo screens. Preserve authentication/root/header infrastructure. Acceptance: no unnecessary write scope or example mutation remains.
 - [ ] **P2.4, Engineer, after P2.2/P2.3:** build, typecheck, and lint the foundation; inspect failures promptly. Acceptance: the starting template is known to work before domain code is layered onto it.
 
@@ -79,14 +81,14 @@ Owner `Engineer` means the implementation work in this repository. Owner `User` 
 - [ ] **P3.2, Engineer, after P3.1:** implement the pure COD rule and exact money conversions. Acceptance: cash, manual/pending, non-COD, empty gateways, USD, JPY, and KWD cases are represented in test sources.
 - [ ] **P3.3, Engineer, after P3.1:** extend Prisma schema with `Shop`, `Order`, and `WebhookReceipt`, unique keys, foreign keys, and the latest-order index. Preserve the generated session schema. Acceptance: schema validation passes and the migration's SQL can be reviewed without executing it.
 - [ ] **P3.4, User + Engineer, after P3.3:** show the exact migration and intended local database target, then apply only when authorized. Some migration-generation commands also write to databases; use a non-applying diff/generation path while awaiting approval. Acceptance: expected tables, constraints, and cascade behavior exist in the approved database.
-- [ ] **P3.5, Engineer, after P1.3/P3.3:** register an installation only from the supported authenticated lifecycle. Acceptance: ordinary reauthentication preserves the installation timestamp; unknown webhook shops cannot register themselves.
+- [ ] **P3.5, Engineer, after P1.3/P3.3:** share idempotent registration between the supported authentication hook and the successfully authenticated dashboard loader. Verify the persisted offline session inside its transaction, including for a store installed before the hook was added. Acceptance: ordinary reauthentication preserves the installation timestamp; unknown webhook shops cannot register themselves; partial setup produces a recoverable state.
 
 ### P4: reliable webhook handling
 
-- [ ] **P4.1, Engineer, after P1.3:** inspect raw-body and HMAC validation in the locked SDK and enforce request-size limits without pre-parsing JSON. Verify missing-session behavior and possible token refresh. Acceptance: the route can be explained accurately from request bytes through validation.
-- [ ] **P4.2, Engineer, after P3.2/P3.4/P3.5/P4.1:** implement the single receipt/order transaction and unknown-shop path. Acceptance: the only success path after a new accepted event is after commit; no floating persistence promises, independent counters, or check-then-insert race.
+- [ ] **P4.1, Engineer, after P1.3/P2.2:** implement a small bounded raw-body helper using the official SDK validator and the template's compatible request adapter. Parse JSON only after validation, mapping malformed JSON to 400. Acceptance: no session refresh or Admin API call occurs in the webhook path; the route can be explained accurately from request bytes through validation.
+- [ ] **P4.2, Engineer, after P3.2/P3.4/P3.5/P4.1:** implement the single receipt/order transaction and unknown-shop path. Return 503 when an offline session exists but registration is incomplete. Acceptance: the only success path after a new accepted event is after commit; no floating persistence promises, independent counters, or check-then-insert race.
 - [ ] **P4.3, Engineer, after P4.2:** classify duplicate receipt conflicts separately from database failures. Enforce route/topic matching and sanitize logs. Acceptance: duplicate returns 200; unavailable database returns failure; invalid signature cannot write anything.
-- [ ] **P4.4, Engineer, after P3.4/P4.1:** extend uninstall cleanup to delete sessions and the installation's dependent data in one transaction, even when the SDK returns no session. Acceptance: repeated uninstall works and a late order cannot recreate a deleted installation.
+- [ ] **P4.4, Engineer, after P3.4/P4.1:** extend uninstall cleanup to delete sessions and the installation's dependent data in one transaction, without loading or refreshing a token. Acceptance: missing, expired, or revoked sessions do not block cleanup; repeated uninstall works and a late order cannot recreate a deleted installation.
 - [ ] **P4.5, Engineer, after P4.2/P4.4:** add transaction and lifecycle test cases, including concurrent delivery, rollback, missing session, unknown shop, and second-shop isolation. Acceptance: assertions cover durable state, not only mocked function-call counts. Execution is a separate, explicitly requested action.
 
 **Checkpoint B:** one authenticated order must be persistable without double counting, and uninstall must be designed into the same ownership model. Do not spend the remaining time on UI styling while these are unresolved.
@@ -101,15 +103,15 @@ Owner `Engineer` means the implementation work in this repository. Owner `User` 
 
 ### P6: evidence and one bounded bonus
 
-- [ ] **P6.1, Engineer, after P4.5/P5.4:** author the minimum meaningful tests in [Quality](docs/QUALITY.md), prioritizing COD behavior and the receipt/order rollback boundary. Acceptance: the tests would detect a plausible bug, rather than merely duplicate implementation expressions.
+- [ ] **P6.1, Engineer, after P4.5/P5.4:** review the tests already added with webhook work and complete missing minimum cases from [Quality](docs/QUALITY.md). Do not rebuild the same test suite in this phase. Acceptance: tests cover COD behavior, the receipt/order rollback boundary, and shop isolation, and would detect a plausible bug.
 - [ ] **P6.2, Engineer, after P4.1:** add the selected bonus: a fixed-payload, fixed-secret, fixed-signature test through the real validation path, plus tampering and malformed-signature cases. Use only fabricated credentials. Acceptance: the expected signature is a fixed fixture, not generated by the implementation under test.
-- [ ] **P6.3, Engineer, after P6.1/P6.2:** run lint, typecheck, format check, and build. Run tests only when explicitly requested; record any unexecuted checks honestly. Acceptance: results refer to the current commit and do not imply a test suite ran when it did not.
+- [ ] **P6.3, Engineer, after P6.1 and P6.2 if retained:** run lint, typecheck, format check, and build. Run tests only when explicitly requested; record any unexecuted checks honestly. Acceptance: results refer to the current commit and do not imply a test suite ran when it did not. Dropping the optional bonus must not block required checks.
 - [ ] **P6.4, User + Engineer, after P5.5:** create an authorized dev-store order and observe receipt plus dashboard refresh. Prepare a safe exact-replay utility or private capture. Acceptance: same bytes, shop, topic, and webhook ID sent twice yield unchanged order count; a second trigger with a new ID is not claimed as delivery-ID proof.
 - [ ] **P6.5, User + Engineer, after P6.4:** verify uninstall after the demo data is no longer needed, then reinstall/reseed only when authorized. Acceptance: all shop-owned tables and sessions are cleared while another shop's data remains intact.
 
 ### P7: handoff and presentation
 
-- [ ] **P7.1, Engineer, after P6.3/P6.4:** replace planning-only README setup text with commands actually verified in this repository. Record exact scopes, environment variable names, database setup, refresh behavior, COD rule, omissions, and actual elapsed time.
+- [ ] **P7.1, Engineer, after P6.3/P6.4/P6.5 or explicit disclosure of an unverified item:** replace planning-only README setup text with commands actually verified in this repository. Record exact scopes, environment variable names, database setup, refresh behavior, COD rule, omissions, and actual elapsed time. Do not call the assignment complete while a mandatory acceptance item remains unimplemented or unverified.
 - [ ] **P7.2, Engineer/User, after P7.1:** rehearse [Demo](docs/DEMO.md), including the signature and transaction explanation. Acceptance: 15 minutes covers the real event, exact duplicate, code path, data model, and production trade-offs.
 - [ ] **P7.3, Engineer, after P7.1:** inspect the final staged diff and tracked-file list for secrets, databases, webhook captures, irrelevant generated files, and unsupported completion claims. Acceptance: public code and documentation are intentional and current.
 - [ ] **P7.4, Engineer, after P7.3:** commit and push the reviewed implementation to `main` under the personal account when authorized, then verify the remote commit. Acceptance: repository owner, public visibility, default branch, and commit match the intended deliverable.

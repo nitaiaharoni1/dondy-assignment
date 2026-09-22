@@ -49,23 +49,25 @@ Prioritize the receipt/order atomicity and shop isolation cases. Use the real SQ
 | T07 | Fixed raw payload, test secret, independently fixed signature | Real configured validation accepts exact bytes |
 | T08 | One altered byte, whitespace change, missing/invalid/short signature | Validation rejects safely before application writes; no length-related crash |
 | T09 | First delivery, same delivery again | One order and one receipt; same metrics before/after retry |
-| T10 | Two simultaneous requests with identical delivery ID | Database uniqueness prevents duplicate business effect; any bounded retry resolves safely |
+| T10 | Two simultaneous requests with identical delivery ID | One durable business effect; duplicate returns 200 or lock contention returns a retryable failure that succeeds as a duplicate on redelivery |
 | T11 | Same shop/order with a different delivery ID | One order, two receipts, unchanged order count/value |
 | T12 | Fail order persistence after receipt insert | Neither row commits; retry can subsequently succeed |
 | T13 | Valid signature but malformed required payload | 400, no application rows or customer data logged |
 | T14 | Invalid signature and forged shop parameter | No database write path entered; client shop parameter cannot choose dashboard ownership |
 | T15 | Known shop A and B share an order ID or delivery ID | Keys remain shop-scoped; each dashboard returns only its own records |
-| T16 | Unknown shop, or valid late order after uninstall | 200 ignored, no installation or order created |
-| T17 | Uninstall with no returned session, then repeat | Orders, receipts, sessions, and registry entry deleted; second call still succeeds |
+| T16 | No installation/session, or valid late order after uninstall | 200 ignored, no installation or order created |
+| T17 | Uninstall with missing, expired, or revoked session, then repeat | Cleanup makes no token-refresh call; orders, receipts, sessions, and registry entry are deleted; second call still succeeds |
 | T18 | Uninstall failure midway | Transaction rollback prevents partial cleanup |
 | T19 | Order/uninstall race | Final state respects committed ordering and cannot orphan or resurrect orders without a new authenticated install |
 | T20 | Empty dashboard | Zero counts/share, empty value state, no divide-by-zero or fabricated currency |
 | T21 | More than 20 orders and mixed currencies | Exactly 20 deterministically sorted rows; metrics include all orders; currency sums separate |
 | T22 | Refresh success/failure | New snapshot becomes visible; errors remain recoverable and do not expose internals |
+| T23 | Offline session exists before installation record is created | Order gets 503 without a receipt; successful authenticated registration followed by redelivery persists it once |
+| T24 | Correctly signed malformed JSON | 400 from the narrow JSON parsing boundary; no token refresh or application writes |
 
 If time is tight, group cases into a few parameterized tests rather than building a large testing framework. At minimum, author T01/T02, T09/T12, T15/T17, and the selected HMAC bonus T07/T08. Other cases are acceptance/review cases until implemented. Do not report the whole matrix as covered because a few tests pass.
 
-For HMAC, test the validator actually used by the route, with fresh Request objects because request bodies are single-use. Use an explicitly fake constant such as a test-only secret. Store the expected signature as a fixed fixture generated independently. A mocked validator that always returns success does not prove signature verification.
+For HMAC, test the lower-level SDK validator actually used by the route, with fresh Request objects because request bodies are single-use. Use an explicitly fake constant such as a test-only secret. Store the expected signature as a fixed fixture generated independently. A mocked validator that always returns success does not prove signature verification. Include all required Shopify delivery headers in the valid fixture so a missing header cannot disguise a signature regression.
 
 ## Live verification sequence
 
@@ -105,7 +107,7 @@ A valid HMAC is not encryption and does not sign headers. The SDK plus installat
 
 | Measurement | Target | Method and limit |
 | --- | --- | --- |
-| Warm accepted/duplicate webhook | p95 < 500 ms locally | Record end-to-end handler duration, including SDK auth/session work; tunnel latency is additional |
+| Warm accepted/duplicate webhook | p95 < 500 ms locally | Record raw-body reading, SDK validation, and database work; no token refresh; tunnel latency is additional |
 | Shopify acknowledgement | Safely below 5 seconds | Bound transaction wait/work; retain retry behavior on infrastructure failure |
 | Dashboard loader with 1,000 orders | p95 < 250 ms locally | Approved synthetic dataset, repeated scoped queries, no claim of production capacity |
 | Response size | Bounded to 20 order rows plus aggregate groups | Inspect actual payload; do not send every order to the browser |
