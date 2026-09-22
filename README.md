@@ -77,6 +77,31 @@ npx tsx scripts/replay-webhook.ts \
 
 Refresh the dashboard after webhooks; the open browser does not update by itself.
 
+## Key decisions
+
+- **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhooks.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
+- **Order and uninstall handlers do not call `authenticate.webhook()`.** That template helper can load and refresh an access token. These two routes check the raw body with `@shopify/shopify-api` `webhooks.validate`, then parse JSON. The generated `app/scopes_update` route still uses the template helper, because it updates the saved session scope.
+- **The signature check is the SDK's `safeCompare`.** Equal-length values are compared with XOR across every byte (`timingSafeEqual` in `@shopify/shopify-api`). Different lengths return false without walking the bytes. This app does not implement its own compare.
+- **Write, then answer.** The order and the delivery id commit in one database transaction. Success, a duplicate delivery, and an unknown shop return 200. A failed write returns 503 so Shopify retries. A bad signature returns 401. A bad payload returns 400.
+- **`manual` means the whole gateway name,** after trim and lowercase, not a substring. `cash` is a substring, so "Cash on Delivery" matches even when the order is already paid.
+- **Totals stay split by currency.** USD and JPY are not added together. Amounts are integer minor units (cents, yen, fils), not floating point.
+- **Template:** the official React Router app, not a separate Next.js admin. Polaris on the page is the template's web components.
+
+## Requirements
+
+| Task item                                   | Where                                        | Status                                                     |
+| ------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| Embedded app on a development store         | `npm run dev`                                | Not done. Needs your Partner login, then install           |
+| `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                   |
+| Raw-body HMAC                               | `app/webhooks.server.ts`                     | SDK validator. Fixed signature test passes                 |
+| Idempotent `X-Shopify-Webhook-Id`           | `app/models/orders.server.ts`                | Same delivery twice keeps one order. Local replay did this |
+| 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                   |
+| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/domain/cod.ts`  | Tested                                                     |
+| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Built. Not opened inside a store admin                     |
+| This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                      |
+| `app/uninstalled` deletes that shop's data  | `app/models/shops.server.ts`                 | Tested, including a second call                            |
+| README                                      | This file                                    | How to run, rule, decisions, time, limits                  |
+
 ## Deliberate limits
 
 No historical import, no `orders/updated`, no refunds/cancellations, no automatic tagging, no background queue, no production deploy, no App Store release. Currency totals stay separate (no FX). Compliance webhooks are not claimed. Cross-install lifecycle races (delayed uninstall after reinstall) need extra production design.
@@ -87,14 +112,15 @@ With more time: PostgreSQL, durable intake queue, reconciliation, lifecycle gene
 
 Planning and setup count toward the assignment budget.
 
-| Activity                                       | Actual elapsed time                                                    | Evidence/status                                                                                                                                |
-| ---------------------------------------------- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Initial reading and inspection before 13:45:12 | Unmeasured                                                             | Add if known                                                                                                                                   |
-| Instrumented planning and repository setup     | 11 minutes 38 seconds                                                  | 13:45:12 to 13:56:50 Asia/Jerusalem                                                                                                            |
-| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                                   | 13:59:26 to 14:04:41 Asia/Jerusalem                                                                                                            |
-| Application implementation                     | See commits from implementation session starting ~14:11 Asia/Jerusalem | Scaffold, domain, webhooks, dashboard, tests, README                                                                                           |
-| Store setup, installation, and live demo       | Not completed in-agent                                                 | Needs Partner login / store install by the candidate                                                                                           |
-| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass                  | `npm run test` 30 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
+| Activity                                       | Actual elapsed time                                     | Evidence/status                                                                                                                                |
+| ---------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Initial reading and inspection before 13:45:12 | Unmeasured                                              | Add if known                                                                                                                                   |
+| Instrumented planning and repository setup     | 11 minutes 38 seconds                                   | 13:45:12 to 13:56:50 Asia/Jerusalem                                                                                                            |
+| Follow-up planning audit and corrections       | 5 minutes 15 seconds                                    | 13:59:26 to 14:04:41 Asia/Jerusalem                                                                                                            |
+| Application, tests, and review                 | 42 minutes, 14:10 to 14:52 Asia/Jerusalem               | Commits `81537ba` through `3f48d63`                                                                                                            |
+| Requirements check against the original task   | After 14:52 Asia/Jerusalem, see this commit's timestamp | README sections Key decisions and Requirements                                                                                                 |
+| Store setup, installation, and live demo       | Not completed in-agent                                  | Needs Partner login / store install by the candidate                                                                                           |
+| Builds, typecheck, lint, and tests             | Run during implementation and the follow-up test pass   | `npm run test` 30 passed. Local synthetic replay: first 200 in 38ms, duplicate 200 in 4ms, one COD order stored. Live Partner install not done |
 
 ## Plan docs
 
