@@ -1,0 +1,33 @@
+# Dependencies and generated output
+node_modules/
+build/
+dist/
+.react-router/
+.cache/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Local credentials and Shopify state
+.env
+.env.*
+!.env.example
+.shopify/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+
+# Local databases may contain access tokens and order data
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Private webhook captures, logs, and machine files
+.local/
+*.log
+.DS_Store
