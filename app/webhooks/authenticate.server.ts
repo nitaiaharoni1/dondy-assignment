@@ -28,15 +28,14 @@ function webhookApi() {
   });
 }
 
-export type ValidatedWebhook = {
+type ValidatedWebhook = {
   shop: string;
   topic: string;
   webhookId: string;
-  apiVersion: string;
   payload: unknown;
 };
 
-export type WebhookAuthFailure = {
+type WebhookAuthFailure = {
   status: 400 | 401 | 405 | 413;
   reason: string;
 };
@@ -187,7 +186,6 @@ export async function authenticateWebhookRequest(
       shop: validation.domain.toLowerCase(),
       topic: validation.topic,
       webhookId: validation.webhookId,
-      apiVersion: validation.apiVersion,
       payload: parsed.payload,
     },
   };

@@ -3,7 +3,7 @@ import prisma from "../db.server";
 import { hasOfflineSession } from "./shops.server";
 import { normalizeShopDomain } from "./shops.server";
 
-export type IngestResult =
+type IngestResult =
   | { status: "accepted" }
   | { status: "duplicate" }
   | { status: "unknown_shop" }

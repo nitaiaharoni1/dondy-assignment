@@ -1,8 +1,8 @@
 import type { NormalizedOrder } from "../app/orders/payload.server";
 
-export const TEST_SECRET = "cod-order-watch-test-secret-not-real";
-export const TEST_API_KEY = "cod-order-watch-test-api-key";
-export const TEST_APP_URL = "https://cod-order-watch.test";
+const TEST_SECRET = "cod-order-watch-test-secret-not-real";
+const TEST_API_KEY = "cod-order-watch-test-api-key";
+const TEST_APP_URL = "https://cod-order-watch.test";
 
 export const FIXED_BODY =
   '{"id":"1001","admin_graphql_api_id":"gid://shopify/Order/1001","name":"#1001","total_price":"12.34","currency":"USD","payment_gateway_names":["Cash on Delivery"],"financial_status":"pending","created_at":"2026-09-22T12:00:00Z"}';
