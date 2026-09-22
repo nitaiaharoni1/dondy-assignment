@@ -1,7 +1,15 @@
 /**
- * This is intended to be a basic starting point for linting in your app.
- * It relies on recommended configs out of the box for simplicity, but you can
- * and should modify this configuration to best suit your team's needs.
+ * Names:
+ * - Folders are kebab-case: app/orders, app/webhooks, app/dashboard.
+ * - Modules are kebab-case. Server-only modules end in .server.ts.
+ * - React components that are not routes are PascalCase.tsx.
+ * - app/routes keeps React Router flat-route names (dots and a leading underscore).
+ *
+ * Size:
+ * - A file stays under 300 lines.
+ * - A function stays under 50 lines.
+ * - Cyclomatic complexity stays at 8 or below.
+ * - Blocks nest at most 4 levels deep.
  */
 
 /** @type {import('eslint').Linter.Config} */
@@ -75,6 +83,17 @@ module.exports = {
         "plugin:import/typescript",
       ],
       rules: {
+        complexity: ["error", 8],
+        "max-depth": ["error", 4],
+        "max-lines": [
+          "error",
+          { max: 300, skipBlankLines: true, skipComments: true },
+        ],
+        "max-lines-per-function": [
+          "error",
+          { max: 50, skipBlankLines: true, skipComments: true, IIFEs: true },
+        ],
+        "import/no-duplicates": "off",
         "@typescript-eslint/no-explicit-any": "error",
         "@typescript-eslint/no-non-null-assertion": "warn",
         "@typescript-eslint/consistent-type-imports": [
@@ -95,8 +114,8 @@ module.exports = {
     {
       files: [
         "app/**/*.server.ts",
-        "app/domain/**/*.ts",
-        "app/webhooks.server.ts",
+        "app/orders/**/*.ts",
+        "app/webhooks/**/*.ts",
       ],
       parserOptions: {
         project: "./tsconfig.json",
@@ -110,6 +129,13 @@ module.exports = {
         "@typescript-eslint/no-unsafe-argument": "error",
         "@typescript-eslint/no-unsafe-return": "error",
         "@typescript-eslint/no-unsafe-member-access": "error",
+      },
+    },
+
+    {
+      files: ["tests/**/*.ts"],
+      rules: {
+        "max-lines-per-function": "off",
       },
     },
 

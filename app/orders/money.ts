@@ -51,11 +51,7 @@ function currencyFractionDigits(currency: string): number {
   }
 }
 
-/**
- * Convert a Shopify decimal money string into signed 64-bit minor units.
- * Never uses floating-point multiplication.
- */
-export function toMinorUnits(amount: string, currency: string): bigint {
+function parseAmount(amount: string): Decimal {
   if (typeof amount !== "string" || amount.trim() === "") {
     throw new MoneyError("Amount must be a non-empty decimal string");
   }
@@ -76,28 +72,36 @@ export function toMinorUnits(amount: string, currency: string): bigint {
   if (decimal.isNegative()) {
     throw new MoneyError("Negative amounts are not allowed");
   }
+  return decimal;
+}
 
-  const fractionDigits = currencyFractionDigits(currency);
-  const scaled = decimal.mul(new Decimal(10).pow(fractionDigits));
-
-  if (!scaled.isInteger()) {
-    throw new MoneyError(
-      `Amount has more than ${fractionDigits} fractional digits for ${currency}`,
-    );
-  }
-
+function minorFromScaled(scaled: Decimal): bigint {
   let minor: bigint;
   try {
     minor = BigInt(scaled.toFixed(0));
   } catch {
     throw new MoneyError("Amount cannot be represented as an integer");
   }
-
   if (minor < INT64_MIN || minor > INT64_MAX) {
     throw new MoneyError("Amount exceeds signed 64-bit storage range");
   }
-
   return minor;
+}
+
+/**
+ * Convert a Shopify decimal money string into signed 64-bit minor units.
+ * Never uses floating-point multiplication.
+ */
+export function toMinorUnits(amount: string, currency: string): bigint {
+  const decimal = parseAmount(amount);
+  const fractionDigits = currencyFractionDigits(currency);
+  const scaled = decimal.mul(new Decimal(10).pow(fractionDigits));
+  if (!scaled.isInteger()) {
+    throw new MoneyError(
+      `Amount has more than ${fractionDigits} fractional digits for ${currency}`,
+    );
+  }
+  return minorFromScaled(scaled);
 }
 
 /** Reconstruct an exact decimal string from minor units (for loader/JSON). */

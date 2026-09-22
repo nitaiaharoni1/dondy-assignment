@@ -2,7 +2,8 @@ import type { ActionFunctionArgs } from "react-router";
 
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
-import { shopLogToken } from "../webhooks.server";
+import { logWebhook } from "../webhooks/log.server";
+import { shopLogToken } from "../webhooks/log.server";
 
 function scopeList(payload: unknown): string[] | null {
   if (
@@ -20,14 +21,13 @@ function scopeList(payload: unknown): string[] | null {
 }
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const started = Date.now();
   const { payload, session, topic, shop } = await authenticate.webhook(request);
-  console.info(
-    JSON.stringify({
-      outcome: "scopes_update",
-      topic,
-      shop: shopLogToken(shop),
-    }),
-  );
+  logWebhook("info", started, {
+    outcome: "scopes_update",
+    topic,
+    shop: shopLogToken(shop),
+  });
 
   const current = scopeList(payload);
   if (session && current) {

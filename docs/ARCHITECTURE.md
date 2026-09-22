@@ -53,30 +53,21 @@ Extend the generated template, preserving its root document, headers, authentica
 ```text
 app/
   shopify.server.ts                  existing Shopify configuration/authentication
-  webhooks.server.ts                 bounded raw-body read and official SDK validation
   db.server.ts                       existing singleton Prisma client
-  routes/
-    app.tsx                          existing authenticated embedded layout
-    app._index.tsx                   dashboard loader, view, explicit refresh
-    webhooks.orders.create.tsx       thin authenticated orders/create action
-    webhooks.app.uninstalled.tsx     thin authenticated uninstall action
-    webhooks.app.scopes_update.tsx   retain template lifecycle behavior
-  models/
-    orders.server.ts                 transaction and scoped dashboard queries
-    shops.server.ts                  authenticated install registration and purge
-  domain/
-    order-payload.server.ts          selected-field Zod schema and normalization
-    cod.ts                          pure COD rule
-    money.ts                        decimal string to exact minor-unit conversion
+  orders/                            COD rule, money, payload, ingest, shops, dashboard query
+  webhooks/                          raw-body validation and structured log lines
+  dashboard/                         embedded page pieces
+  routes/                            React Router flat-route names and thin handlers
   ...                               generated auth/root files
 prisma/
   schema.prisma
   migrations/                       committed migration files, no database files
 tests/
   cod.test.ts
-  money.test.ts
-  webhooks.test.ts                   real validation path and transaction behavior
-  fixtures/                         fabricated orders and non-production secrets
+  webhook-fixtures.ts
+  webhook-signature.test.ts
+  order-ingest.test.ts
+  order-lifecycle.test.ts
 scripts/
   replay-webhook.ts                  local replay utility, only if needed for demo
 ```

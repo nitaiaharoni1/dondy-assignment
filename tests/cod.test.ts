@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isCodOrder } from "../app/domain/cod";
-import { fromMinorUnits, toMinorUnits } from "../app/domain/money";
-import { normalizeOrderPayload } from "../app/domain/order-payload.server";
-import { OrderPayloadError } from "../app/domain/order-payload.server";
+import { isCodOrder } from "../app/orders/cod";
+import { fromMinorUnits } from "../app/orders/money";
+import { toMinorUnits } from "../app/orders/money";
+import { normalizeOrderPayload } from "../app/orders/payload.server";
+import { OrderPayloadError } from "../app/orders/payload.server";
 
 describe("isCodOrder", () => {
   it("matches cash substring with mixed case and whitespace", () => {

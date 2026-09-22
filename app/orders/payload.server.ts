@@ -41,42 +41,49 @@ export class OrderPayloadError extends Error {
 
 const GRAPHQL_ORDER_ID = /^gid:\/\/shopify\/Order\/(\d+)$/;
 
+function idFromGraphql(
+  adminGraphqlApiId: string | undefined,
+): string | undefined {
+  if (adminGraphqlApiId === undefined) {
+    return undefined;
+  }
+  const match = GRAPHQL_ORDER_ID.exec(adminGraphqlApiId);
+  if (!match?.[1]) {
+    throw new OrderPayloadError("Invalid admin_graphql_api_id");
+  }
+  return match[1];
+}
+
+function idFromNumber(rawId: number): string {
+  if (!Number.isInteger(rawId) || rawId <= 0) {
+    throw new OrderPayloadError("Numeric order id must be a positive integer");
+  }
+  if (!Number.isSafeInteger(rawId)) {
+    throw new OrderPayloadError(
+      "Numeric order id exceeds JavaScript safe integer range",
+    );
+  }
+  return String(rawId);
+}
+
+function idFromString(rawId: string): string {
+  const trimmed = rawId.trim();
+  if (!/^\d+$/.test(trimmed) || trimmed === "0") {
+    throw new OrderPayloadError("String order id must be a positive decimal");
+  }
+  return trimmed;
+}
+
 function normalizeOrderId(
   adminGraphqlApiId: string | undefined,
   rawId: string | number | undefined,
 ): string {
-  let fromGraphql: string | undefined;
-  if (adminGraphqlApiId !== undefined) {
-    const match = GRAPHQL_ORDER_ID.exec(adminGraphqlApiId);
-    if (!match?.[1]) {
-      throw new OrderPayloadError("Invalid admin_graphql_api_id");
-    }
-    fromGraphql = match[1];
-  }
-
+  const fromGraphql = idFromGraphql(adminGraphqlApiId);
   let fromId: string | undefined;
-  if (rawId !== undefined) {
-    if (typeof rawId === "number") {
-      if (!Number.isInteger(rawId) || rawId <= 0) {
-        throw new OrderPayloadError(
-          "Numeric order id must be a positive integer",
-        );
-      }
-      if (!Number.isSafeInteger(rawId)) {
-        throw new OrderPayloadError(
-          "Numeric order id exceeds JavaScript safe integer range",
-        );
-      }
-      fromId = String(rawId);
-    } else {
-      const trimmed = rawId.trim();
-      if (!/^\d+$/.test(trimmed) || trimmed === "0") {
-        throw new OrderPayloadError(
-          "String order id must be a positive decimal",
-        );
-      }
-      fromId = trimmed;
-    }
+  if (typeof rawId === "number") {
+    fromId = idFromNumber(rawId);
+  } else if (typeof rawId === "string") {
+    fromId = idFromString(rawId);
   }
 
   if (fromGraphql && fromId && fromGraphql !== fromId) {
@@ -104,6 +111,25 @@ function normalizeGateways(names: string[]): string[] {
   return gateways;
 }
 
+function orderCreatedAt(value: string): Date {
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) {
+    throw new OrderPayloadError("Invalid created_at timestamp");
+  }
+  return createdAt;
+}
+
+function orderTotal(amount: string, currency: string): bigint {
+  try {
+    return toMinorUnits(amount, currency);
+  } catch (error) {
+    if (error instanceof MoneyError) {
+      throw new OrderPayloadError(error.message);
+    }
+    throw error;
+  }
+}
+
 export function normalizeOrderPayload(input: unknown): NormalizedOrder {
   const parsed = orderPayloadSchema.safeParse(input);
   if (!parsed.success) {
@@ -119,20 +145,8 @@ export function normalizeOrderPayload(input: unknown): NormalizedOrder {
     throw new OrderPayloadError("Order name is required");
   }
 
-  const createdAt = new Date(data.created_at);
-  if (Number.isNaN(createdAt.getTime())) {
-    throw new OrderPayloadError("Invalid created_at timestamp");
-  }
-
-  let totalMinor: bigint;
-  try {
-    totalMinor = toMinorUnits(data.total_price, data.currency);
-  } catch (error) {
-    if (error instanceof MoneyError) {
-      throw new OrderPayloadError(error.message);
-    }
-    throw error;
-  }
+  const createdAt = orderCreatedAt(data.created_at);
+  const totalMinor = orderTotal(data.total_price, data.currency);
 
   const financialStatus =
     data.financial_status === undefined || data.financial_status === null

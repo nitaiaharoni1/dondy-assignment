@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
-
 import "@shopify/shopify-api/adapters/web-api";
 import "@shopify/shopify-app-react-router/adapters/node";
 import { shopifyApi } from "@shopify/shopify-api";
 import { ApiVersion } from "@shopify/shopify-api";
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
+const SHOP_DOMAIN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -41,20 +40,35 @@ export type WebhookAuthFailure = {
   reason: string;
 };
 
+function declaredLengthTooLarge(request: Request): boolean {
+  const contentLength = request.headers.get("content-length");
+  if (!contentLength) {
+    return false;
+  }
+  const length = Number(contentLength);
+  return Number.isFinite(length) && length > MAX_BODY_BYTES;
+}
+
+function mergeChunks(chunks: Uint8Array[], total: number): string {
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder("utf-8").decode(merged);
+}
+
 async function readBoundedRawBody(
   request: Request,
 ): Promise<
   { ok: true; rawBody: string } | { ok: false; failure: WebhookAuthFailure }
 > {
-  const contentLength = request.headers.get("content-length");
-  if (contentLength) {
-    const length = Number(contentLength);
-    if (Number.isFinite(length) && length > MAX_BODY_BYTES) {
-      return {
-        ok: false,
-        failure: { status: 413, reason: "payload_too_large" },
-      };
-    }
+  if (declaredLengthTooLarge(request)) {
+    return {
+      ok: false,
+      failure: { status: 413, reason: "payload_too_large" },
+    };
   }
 
   if (!request.body) {
@@ -84,14 +98,33 @@ async function readBoundedRawBody(
     chunks.push(value);
   }
 
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
+  return { ok: true, rawBody: mergeChunks(chunks, total) };
+}
 
-  return { ok: true, rawBody: new TextDecoder("utf-8").decode(merged) };
+function rejectDelivery(
+  validation: { topic: string; domain: string; webhookId: string },
+  expectedTopic: string,
+): WebhookAuthFailure | null {
+  if (validation.topic !== expectedTopic) {
+    return { status: 400, reason: "topic_mismatch" };
+  }
+  if (!SHOP_DOMAIN.test(validation.domain)) {
+    return { status: 400, reason: "invalid_shop_domain" };
+  }
+  if (!validation.webhookId) {
+    return { status: 400, reason: "missing_webhook_id" };
+  }
+  return null;
+}
+
+function parsePayload(
+  rawBody: string,
+): { ok: true; payload: unknown } | { ok: false; failure: WebhookAuthFailure } {
+  try {
+    return { ok: true, payload: JSON.parse(rawBody) as unknown };
+  } catch {
+    return { ok: false, failure: { status: 400, reason: "malformed_json" } };
+  }
 }
 
 /**
@@ -131,29 +164,14 @@ export async function authenticateWebhookRequest(
     return { ok: false, failure: { status: 400, reason } };
   }
 
-  if (validation.topic !== expectedTopic) {
-    return { ok: false, failure: { status: 400, reason: "topic_mismatch" } };
+  const rejected = rejectDelivery(validation, expectedTopic);
+  if (rejected) {
+    return { ok: false, failure: rejected };
   }
 
-  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i.test(validation.domain)) {
-    return {
-      ok: false,
-      failure: { status: 400, reason: "invalid_shop_domain" },
-    };
-  }
-
-  if (!validation.webhookId) {
-    return {
-      ok: false,
-      failure: { status: 400, reason: "missing_webhook_id" },
-    };
-  }
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(bodyResult.rawBody) as unknown;
-  } catch {
-    return { ok: false, failure: { status: 400, reason: "malformed_json" } };
+  const parsed = parsePayload(bodyResult.rawBody);
+  if (!parsed.ok) {
+    return parsed;
   }
 
   return {
@@ -163,12 +181,7 @@ export async function authenticateWebhookRequest(
       topic: validation.topic,
       webhookId: validation.webhookId,
       apiVersion: validation.apiVersion,
-      payload,
+      payload: parsed.payload,
     },
   };
-}
-
-export function shopLogToken(shop: string): string {
-  const digest = createHash("sha256").update(shop).digest("hex").slice(0, 12);
-  return `shop_${digest}`;
 }

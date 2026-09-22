@@ -15,6 +15,10 @@ An embedded Shopify app for seeing how many received orders are Cash-On-Delivery
 
 Normalize payment gateway names by trimming and lowercasing. An order is COD when **any gateway contains `cash`**, or when **`financial_status` is `pending` and a gateway is exactly `manual`**. A pending card payment alone is not COD. This follows the assignment heuristic; some manual pending payments can be bank transfers, and a gateway name containing `cash` can produce a false positive. This is classification, not confirmation that cash was collected.
 
+## Names
+
+Folders are kebab-case: `app/orders`, `app/webhooks`, `app/dashboard`. Modules are kebab-case. A file that touches the database, Shopify admin, or a secret ends in `.server.ts`. React components that are not routes are PascalCase, such as `DashboardPage.tsx`. Files in `app/routes` keep React Router's flat-route names (`app._index.tsx`, `webhooks.orders.create.tsx`). ESLint rejects a file over 300 lines, a function over 50 lines, complexity over 8, or blocks nested more than 4 deep.
+
 ## Stack
 
 Official Shopify React Router TypeScript template (React, Vite, Polaris web components, App Bridge, integrated Node server), Prisma + SQLite, Zod, decimal.js, Vitest. API version `2026-07`. Scope: `read_orders` only.
@@ -93,13 +97,13 @@ Refresh the dashboard after webhooks; the open browser does not update by itself
 | ------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
 | Embedded app on a development store         | `npm run dev`                                | Not done. Needs your Partner login, then install           |
 | `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                   |
-| Raw-body HMAC                               | `app/webhooks.server.ts`                     | SDK validator. Fixed signature test passes                 |
-| Idempotent `X-Shopify-Webhook-Id`           | `app/models/orders.server.ts`                | Same delivery twice keeps one order. Local replay did this |
+| Raw-body HMAC                               | `app/webhooks/authenticate.server.ts`        | SDK validator. Fixed signature test passes                 |
+| Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this |
 | 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                   |
-| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/domain/cod.ts`  | Tested                                                     |
+| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/orders/cod.ts`  | Tested                                                     |
 | Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Built. Not opened inside a store admin                     |
 | This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                      |
-| `app/uninstalled` deletes that shop's data  | `app/models/shops.server.ts`                 | Tested, including a second call                            |
+| `app/uninstalled` deletes that shop's data  | `app/orders/shops.server.ts`                 | Tested, including a second call                            |
 | README                                      | This file                                    | How to run, rule, decisions, time, limits                  |
 
 ## Deliberate limits

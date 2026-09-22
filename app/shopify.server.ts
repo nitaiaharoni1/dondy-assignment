@@ -5,7 +5,7 @@ import { shopifyApp } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 
 import prisma from "./db.server";
-import { registerShopFromSession } from "./models/shops.server";
+import { registerShopFromSession } from "./orders/shops.server";
 
 // Shopify CLI injects these for `app dev`. Build/typegen may run without them;
 // webhook routes still refuse to validate without a real secret.

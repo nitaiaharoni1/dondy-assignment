@@ -10,6 +10,18 @@ export function normalizeShopDomain(shopDomain: string): string {
   return shopDomain.trim().toLowerCase();
 }
 
+export async function hasOfflineSession(
+  db: DbClient,
+  domain: string,
+): Promise<boolean> {
+  const sessions = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT "id" FROM "Session"
+    WHERE "isOnline" = 0 AND lower("shop") = ${domain}
+    LIMIT 1
+  `;
+  return sessions.length > 0;
+}
+
 type Registration =
   { ok: true } | { ok: false; reason: "missing_offline_session" };
 
@@ -22,13 +34,7 @@ async function registerInstalledShop(
     return { ok: false, reason: "missing_offline_session" };
   }
 
-  const sessions = await db.$queryRaw<Array<{ id: string }>>`
-    SELECT "id" FROM "Session"
-    WHERE "isOnline" = 0 AND lower("shop") = ${domain}
-    LIMIT 1
-  `;
-
-  if (sessions.length === 0) {
+  if (!(await hasOfflineSession(db, domain))) {
     return { ok: false, reason: "missing_offline_session" };
   }
 
