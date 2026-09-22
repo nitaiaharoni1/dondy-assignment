@@ -1,0 +1,22 @@
+# Ignore artifacts that shouldn't be reformatted by Prettier
+node_modules
+build
+.cache
+.react-router
+.shopify
+.local
+prisma/dev.sqlite*
+package-lock.json
+
+# Template CI, agent prompts, and planning docs are reviewed separately
+.github
+.claude
+.cursor
+.gemini
+docs
+PLAN.md
+CHANGELOG.md
+Dockerfile
+*.toml
+*.sql
+.graphqlrc.ts

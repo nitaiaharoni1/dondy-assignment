@@ -1,0 +1,33 @@
+# This file stores configurations for your Shopify app.
+# client_id is filled by `shopify app config link` / Partner Dashboard.
+client_id = ""
+name = "COD Order Watch"
+application_url = "https://example.com"
+embedded = true
+
+[access_scopes]
+# Minimum scope for orders/create deliveries. Protected customer data access
+# (development) must still be enabled in the Partner Dashboard without
+# requesting name, address, email, or phone fields.
+scopes = "read_orders"
+
+[auth]
+redirect_urls = [ "https://example.com/auth/callback" ]
+
+[webhooks]
+api_version = "2026-07"
+
+  # Handled by: /app/routes/webhooks.orders.create.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/create"
+  topics = ["orders/create"]
+
+  # Handled by: /app/routes/webhooks.app.uninstalled.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  # Handled by: /app/routes/webhooks.app.scopes_update.tsx
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"

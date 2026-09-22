@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+/// Local installation registry. Created only through authenticated admin flows.
+model Shop {
+  domain      String            @id
+  installedAt DateTime          @default(now())
+  orders      Order[]
+  receipts    WebhookReceipt[]
+}
+
+model Order {
+  shop       String
+  orderId    String
+  name       String
+  totalMinor BigInt
+  currency   String
+  gateways   Json
+  createdAt  DateTime
+  receivedAt DateTime           @default(now())
+  isCod      Boolean
+  shopRef    Shop               @relation(fields: [shop], references: [domain], onDelete: Cascade)
+
+  @@id([shop, orderId])
+  @@index([shop, createdAt, orderId])
+}
+
+model WebhookReceipt {
+  shop        String
+  webhookId   String
+  topic       String
+  processedAt DateTime          @default(now())
+  shopRef     Shop              @relation(fields: [shop], references: [domain], onDelete: Cascade)
+
+  @@id([shop, webhookId])
+}
