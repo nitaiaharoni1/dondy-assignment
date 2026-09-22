@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { action as ordersCreateAction } from "../app/routes/webhooks.orders.create";
 import { authenticateWebhookRequest } from "../app/webhooks/authenticate.server";
 import {
+  actionArgs,
   applyWebhookTestEnv,
   FIXED_BODY,
   FIXED_HMAC,
@@ -74,6 +76,47 @@ describe("webhook HMAC validation", () => {
     if (!result.ok) {
       expect(result.failure.status).toBe(413);
     }
+  });
+
+  it("rejects the wrong verb, topic, and shop before any write", async () => {
+    const getResult = await authenticateWebhookRequest(
+      new Request("https://cod-order-watch.test/webhooks/orders/create", {
+        method: "GET",
+      }),
+      "ORDERS_CREATE",
+    );
+    expect(getResult.ok).toBe(false);
+    if (!getResult.ok) {
+      expect(getResult.failure.status).toBe(405);
+    }
+
+    const wrongTopic = await authenticateWebhookRequest(
+      signedRequest(FIXED_BODY, FIXED_HMAC, { topic: "orders/updated" }),
+      "ORDERS_CREATE",
+    );
+    expect(wrongTopic.ok).toBe(false);
+    if (!wrongTopic.ok) {
+      expect(wrongTopic.failure.status).toBe(400);
+    }
+
+    const badShop = await authenticateWebhookRequest(
+      signedRequest(FIXED_BODY, FIXED_HMAC, { shop: "evil.example" }),
+      "ORDERS_CREATE",
+    );
+    expect(badShop.ok).toBe(false);
+    if (!badShop.ok) {
+      expect(badShop.failure.status).toBe(400);
+      expect(badShop.failure.reason).toBe("invalid_shop_domain");
+    }
+  });
+
+  it("rejects a signed null body before saving", async () => {
+    const response = await ordersCreateAction(
+      actionArgs(
+        signedRequest("null", "dlDWdj1BRV71zjujyQuNGzj3PeB+egGXQI5f/jcJ2Tg="),
+      ),
+    );
+    expect(response.status).toBe(400);
   });
 
   it("rejects correctly signed malformed JSON", async () => {

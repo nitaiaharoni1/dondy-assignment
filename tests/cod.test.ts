@@ -22,6 +22,13 @@ describe("isCodOrder", () => {
     expect(isCodOrder([], "pending")).toBe(false);
     expect(isCodOrder(["cash_on_delivery"], "paid")).toBe(true);
   });
+
+  it("treats nearby words by the written rule", () => {
+    expect(isCodOrder(["cashier"], "paid")).toBe(true);
+    expect(isCodOrder(["manual payment"], "pending")).toBe(false);
+    expect(isCodOrder([" MANUAL "], "PENDING")).toBe(true);
+    expect(isCodOrder(["manual"], null)).toBe(false);
+  });
 });
 
 describe("money", () => {
@@ -37,10 +44,23 @@ describe("money", () => {
 
   it("rejects invalid financial data", () => {
     expect(() => toMinorUnits("abc", "USD")).toThrow(/Invalid decimal|Amount/);
-    expect(() => toMinorUnits("-1.00", "USD")).toThrow(/Negative/);
+    expect(() => toMinorUnits("-1.00", "USD")).toThrow(/Invalid decimal|Negative/);
     expect(() => toMinorUnits("1.00", "ZZZ")).toThrow(/Unsupported currency/);
     expect(() => toMinorUnits("1.234", "USD")).toThrow(/fractional digits/);
     expect(() => toMinorUnits("1e2", "USD")).toThrow(/Exponent/);
+    expect(() => toMinorUnits("+1.00", "USD")).toThrow(/Invalid decimal/);
+    expect(() => toMinorUnits(" 1.00", "USD")).toThrow(/Invalid decimal/);
+    expect(() => toMinorUnits("99999999999999999999.99", "USD")).toThrow(
+      /64-bit/,
+    );
+  });
+
+  it("accepts zero and a whole number of dollars", () => {
+    expect(toMinorUnits("0.00", "USD")).toBe(0n);
+    expect(toMinorUnits("0", "JPY")).toBe(0n);
+    expect(toMinorUnits("10", "USD")).toBe(1000n);
+    expect(toMinorUnits("00.10", "USD")).toBe(10n);
+    expect(fromMinorUnits(0n, "USD")).toBe("0.00");
   });
 });
 

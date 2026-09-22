@@ -58,6 +58,9 @@ function parseAmount(amount: string): Decimal {
   if (/[eE]/.test(amount)) {
     throw new MoneyError("Exponent notation is not allowed");
   }
+  if (!/^\d+(\.\d+)?$/.test(amount)) {
+    throw new MoneyError(`Invalid decimal amount: ${amount}`);
+  }
 
   let decimal: Decimal;
   try {

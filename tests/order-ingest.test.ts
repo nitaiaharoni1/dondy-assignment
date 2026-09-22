@@ -126,6 +126,39 @@ describe("order ingest transactions", () => {
     );
   });
 
+  it("keeps the first snapshot when a later message disagrees", async () => {
+    await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-first",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ totalMinor: 100n, isCod: false, gateways: [] }),
+    });
+    const sameDelivery = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-first",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({
+        orderId: "9999",
+        totalMinor: 9999n,
+        isCod: true,
+      }),
+    });
+    const laterDelivery = await ingestOrderCreate({
+      shop: shopA,
+      webhookId: "wh-later",
+      topic: "ORDERS_CREATE",
+      order: orderFixture({ totalMinor: 9999n, isCod: true }),
+    });
+    expect(sameDelivery.status).toBe("duplicate");
+    expect(laterDelivery.status).toBe("accepted");
+    const row = await prisma.order.findUnique({
+      where: { shop_orderId: { shop: shopA, orderId: "1001" } },
+    });
+    expect(row?.totalMinor).toBe(100n);
+    expect(row?.isCod).toBe(false);
+    expect(await prisma.order.count({ where: { shop: shopA } })).toBe(1);
+  });
+
   it("isolates shop dashboards and cleans up on uninstall", async () => {
     await ingestOrderCreate({
       shop: shopA,
