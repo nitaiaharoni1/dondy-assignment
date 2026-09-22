@@ -91,6 +91,12 @@ Order **#1011** was then created in that store: one custom item, payment due lat
 
 Stills: [empty dashboard](docs/demo/01-empty.png), [order #1011](docs/demo/02-order.png), [dashboard after the webhook](docs/demo/03-dashboard.png). [MP4](docs/demo/live-store.mp4).
 
+The first clip does not show the "send the same delivery twice" step. That is the next clip. A signed `orders/create` for **#COD-9101** (gateway `Cash on Delivery`) was posted to the running app, then the exact same bytes and the same webhook id were posted again. Both answers were HTTP 200. One receipt was stored. The dashboard moved from 1 order and 0% COD to 2 orders, 1 COD order, and 50.0%, then stayed there after the repeat.
+
+![Same delivery twice](docs/demo/same-delivery.gif)
+
+Stills: [before](docs/demo/04-before-duplicate.png), [after the cash order](docs/demo/05-after-cod.png), [after the same delivery again](docs/demo/06-same-after-duplicate.png). [MP4](docs/demo/same-delivery.mp4).
+
 ## Key decisions
 
 - **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhooks.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
