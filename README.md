@@ -101,7 +101,7 @@ Clips and stills are in [Demo](#demo) above. Extra detail from that session: the
 
 ## Key decisions
 
-- **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`tests/webhook-signature.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
+- **Bonus chosen:** a unit test with a fixed payload, a fixed test secret, and a pasted signature (`integration-tests/webhook-signature.test.ts`). Not order tagging, compliance webhooks, or `orders/updated`.
 - **Order and uninstall handlers do not call `authenticate.webhook()`.** That template helper can load and refresh an access token. These two routes check the raw body with `@shopify/shopify-api` `webhooks.validate`, then parse JSON. The generated `app/scopes_update` route still uses the template helper, because it updates the saved session scope.
 - **The signature check is the SDK's `safeCompare`.** Equal-length values are compared with XOR across every byte (`timingSafeEqual` in `@shopify/shopify-api`). Different lengths return false without walking the bytes. This app does not implement its own compare.
 - **Write, then answer.** The order and the delivery id commit in one database transaction. Success, a duplicate delivery, and an unknown shop return 200. A failed write returns 503 so Shopify retries. A bad signature returns 401. A bad payload returns 400.
@@ -115,13 +115,13 @@ Clips and stills are in [Demo](#demo) above. Extra detail from that session: the
 | ------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------- |
 | Embedded app on a development store         | `npm run dev`                                | Installed on Quick Start (`quick-start-688d1411`). See Demo |
 | `orders/create` in `shopify.app.toml`       | `uri = "/webhooks/orders/create"`            | Declared                                                              |
-| Raw-body HMAC                               | `app/webhooks/authenticate.server.ts`        | SDK validator. Fixed signature test passes                            |
-| Idempotent `X-Shopify-Webhook-Id`           | `app/orders/ingest.server.ts`                | Same delivery twice keeps one order. Local replay did this            |
-| 200 after a safe write                      | `app/routes/webhooks.orders.create.tsx`      | 200 after commit. 503 if the write fails                              |
-| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/orders/cod.ts`  | Tested                                                                |
-| Polaris page: counts, share, value, last 20 | `app/routes/app._index.tsx`                  | Opened in the Quick Start admin. Order #1011 is on the dashboard. See Demo |
+| Raw-body HMAC                               | `app/backend/common/webhooks/webhooks-authenticate.server.ts`| SDK validator. Fixed signature test passes                            |
+| Idempotent `X-Shopify-Webhook-Id`           | `app/backend/modules/orders/orders-service.server.ts`| Same delivery twice keeps one order. Local replay did this            |
+| 200 after a safe write                      | `app/backend/modules/orders/orders-controller.server.ts`| 200 after commit. 503 if the write fails                              |
+| Stored fields and COD flag                  | `prisma/schema.prisma`, `app/backend/modules/orders/domain/domain-cod.ts`| Tested                                                                |
+| Polaris page: counts, share, value, last 20 | `app/backend/modules/orders/orders-controller.server.ts`| Opened in the Quick Start admin. Order #1011 is on the dashboard. See Demo |
 | This shop only                              | Dashboard loader uses the authenticated shop | Tested with two shops                                                 |
-| `app/uninstalled` deletes that shop's data  | `app/orders/shops.server.ts`                 | Tested, including a second call                                       |
+| `app/uninstalled` deletes that shop's data  | `app/backend/modules/shops/shops-service.server.ts`| Tested, including a second call                                       |
 | README                                      | This file                                    | How to run, rule, decisions, time, limits                             |
 
 ## Deliberate limits

@@ -9,8 +9,8 @@ function getConfig() {
       default: shopifyApiProject({
         apiType: ApiType.Admin,
         apiVersion: ApiVersion.October25,
-        documents: ["./app/**/*.{js,ts,jsx,tsx}", "./app/.server/**/*.{js,ts,jsx,tsx}"],
-        outputDir: "./app/types",
+        documents: ["./app/**/*.{js,ts,jsx,tsx}"],
+        outputDir: "./app/backend/types",
       }),
     },
   };

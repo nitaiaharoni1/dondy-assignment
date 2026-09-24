@@ -1,6 +1,6 @@
 /**
  * Names:
- * - Folders are kebab-case: app/orders, app/webhooks, app/dashboard.
+ * - Folders are kebab-case.
  * - Modules are kebab-case. Server-only modules end in .server.ts.
  * - React components that are not routes are PascalCase.tsx.
  * - app/routes keeps React Router flat-route names (dots and a leading underscore).
@@ -114,8 +114,8 @@ module.exports = {
     {
       files: [
         "app/**/*.server.ts",
-        "app/orders/**/*.ts",
-        "app/webhooks/**/*.ts",
+        "app/backend/orders/**/*.ts",
+        "app/backend/webhooks/**/*.ts",
       ],
       parserOptions: {
         project: "./tsconfig.json",
@@ -133,7 +133,7 @@ module.exports = {
     },
 
     {
-      files: ["tests/**/*.ts"],
+      files: ["integration-tests/**/*.ts", "**/*.test.ts"],
       rules: {
         "max-lines-per-function": "off",
       },

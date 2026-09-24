@@ -52,6 +52,7 @@ model Order {
 
   @@id([shop, orderId])
   @@index([shop, createdAt, orderId])
+  @@index([shop, currency, isCod, totalMinor])
 }
 
 model WebhookReceipt {
