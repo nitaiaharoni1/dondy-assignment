@@ -45,69 +45,25 @@ type WebhookAuthFailure = {
   reason: string;
 };
 
-function declaredLengthTooLarge(request: Request): boolean {
-  const contentLength = request.headers.get("content-length");
-  if (!contentLength) {
-    return false;
-  }
-  const length = Number(contentLength);
-  return Number.isFinite(length) && length > MAX_BODY_BYTES;
-}
+const PAYLOAD_TOO_LARGE: WebhookAuthFailure = {
+  status: 413,
+  reason: "payload_too_large",
+};
 
-function mergeChunks(chunks: Uint8Array[], total: number): string {
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    merged.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return new TextDecoder("utf-8").decode(merged);
-}
-
-/**
- * Read the request body as a raw UTF-8 string for HMAC.
- * Cap at MAX_BODY_BYTES so a huge Content-Length or stream cannot exhaust memory.
- */
-async function readBoundedRawBody(
+/** Raw body for HMAC. A lying Content-Length still gets buffered before the size check. */
+async function readRawBody(
   request: Request,
 ): Promise<
   { ok: true; rawBody: string } | { ok: false; failure: WebhookAuthFailure }
 > {
-  if (declaredLengthTooLarge(request)) {
-    return {
-      ok: false,
-      failure: { status: 413, reason: "payload_too_large" },
-    };
+  if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) {
+    return { ok: false, failure: PAYLOAD_TOO_LARGE };
   }
-
-  if (!request.body) {
-    return { ok: true, rawBody: "" };
+  const rawBody = await request.text();
+  if (Buffer.byteLength(rawBody) > MAX_BODY_BYTES) {
+    return { ok: false, failure: PAYLOAD_TOO_LARGE };
   }
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-    if (!value) {
-      continue;
-    }
-    total += value.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      await reader.cancel();
-      return {
-        ok: false,
-        failure: { status: 413, reason: "payload_too_large" },
-      };
-    }
-    chunks.push(value);
-  }
-
-  return { ok: true, rawBody: mergeChunks(chunks, total) };
+  return { ok: true, rawBody };
 }
 
 /** Enforce expected topic, myshopify domain shape, and X-Shopify-Webhook-Id. */
@@ -193,7 +149,7 @@ export async function authenticateWebhookRequest(
     };
   }
 
-  const bodyResult = await readBoundedRawBody(request);
+  const bodyResult = await readRawBody(request);
   if (!bodyResult.ok) {
     return bodyResult;
   }

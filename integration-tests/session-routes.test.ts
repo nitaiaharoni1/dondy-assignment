@@ -140,7 +140,7 @@ describe("dashboard loader", () => {
     });
   });
 
-  it("returns a retry message instead of throwing when metrics fail", async () => {
+  it("throws to the route ErrorBoundary when metrics fail", async () => {
     expect((await ensureShopRegistered(shop)).ok).toBe(true);
     await prisma.order.create({
       data: {
@@ -155,11 +155,9 @@ describe("dashboard loader", () => {
       },
     });
 
-    const payload = await dashboardLoader(dashboardRequest());
-    expect(payload).toEqual({
-      ok: false,
-      error: expect.stringMatching(/Could not load order metrics/),
-    });
+    await expect(dashboardLoader(dashboardRequest())).rejects.toThrow(
+      /Unsupported currency/,
+    );
   });
 
   it("shows only text gateway names from stored rows", async () => {

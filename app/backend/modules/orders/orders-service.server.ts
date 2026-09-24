@@ -1,11 +1,14 @@
 import type { TxClient } from "../../common/db/db-client.server";
 import { withTransaction } from "../../common/db/db-client.server";
 import type { DashboardData } from "../../../shared/types/dashboard";
+import type { DashboardPayload } from "../../../shared/types/dashboard";
 import { hasOfflineSession } from "../shops/shops-repository.server";
 import { shopExists } from "../shops/shops-repository.server";
+import { ensureShopRegistered } from "../shops/shops-service.server";
 import { normalizeShopDomain } from "../shops/shops-service.server";
 import { fromMinorUnits } from "./domain/domain-money";
 import type { NormalizedOrder } from "./domain/domain-payload.server";
+import { normalizeOrderPayload } from "./domain/domain-payload.server";
 import { createOrderIfAbsent } from "./orders-repository.server";
 import { createWebhookReceipt } from "./orders-repository.server";
 import { findLatestOrders } from "./orders-repository.server";
@@ -67,6 +70,17 @@ export async function ingestOrderCreate(input: {
     }
     throw error;
   }
+}
+
+/** Raw orders/create delivery. Throws OrderPayloadError for invalid payloads. */
+export async function ingestOrderWebhook(delivery: {
+  shop: string;
+  webhookId: string;
+  topic: string;
+  payload: unknown;
+}): Promise<IngestResult> {
+  const { payload, ...rest } = delivery;
+  return ingestOrderCreate({ ...rest, order: normalizeOrderPayload(payload) });
 }
 
 /** One decimal place, half-up via integer math (e.g. 1/3 -> 33.3). */
@@ -150,4 +164,21 @@ export async function getDashboardForShop(
       refreshedAt: new Date().toISOString(),
     };
   });
+}
+
+/**
+ * Embedded app home: ensure Shop is registered, then load metrics.
+ * A not-yet-registered shop is a soft error payload.
+ */
+export async function loadDashboard(shop: string): Promise<DashboardPayload> {
+  const registration = await ensureShopRegistered(shop);
+  if (!registration.ok) {
+    return {
+      ok: false,
+      error:
+        "This store is authenticated but the installation record is not ready yet. Open the app again in a moment.",
+    };
+  }
+
+  return { ok: true, data: await getDashboardForShop(shop) };
 }

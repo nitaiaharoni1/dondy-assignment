@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { InvalidPayloadError } from "../../../common/webhooks/webhooks-handler.server";
 import { isCodOrder } from "./domain-cod";
 import { MoneyError, toMinorUnits } from "./domain-money";
 
@@ -32,7 +33,7 @@ export type NormalizedOrder = {
   isCod: boolean;
 };
 
-export class OrderPayloadError extends Error {
+export class OrderPayloadError extends InvalidPayloadError {
   constructor(message: string) {
     super(message);
     this.name = "OrderPayloadError";
